@@ -6,12 +6,12 @@ import (
 	"testing"
 )
 
-func ensureLeaves(t *testing.T, a node, leafB *leaf) {
+func ensureStringLeaves(t *testing.T, a stringNode, leafB *leafStringNode) {
 	t.Helper()
 	if a == nil {
 		t.Fatalf("GOT: %v; WANT: %#v", a, leafB)
 	}
-	leafA, ok := a.(*leaf)
+	leafA, ok := a.(*leafStringNode)
 	if !ok {
 		t.Fatalf("GOT: %v; WANT: %#v", a, leafB)
 	}
@@ -37,45 +37,29 @@ func ensureLeaves(t *testing.T, a node, leafB *leaf) {
 	}
 }
 
-func cls(items ...string) []Comparable {
-	bar := make([]Comparable, len(items))
-	for i := 0; i < len(items); i++ {
-		bar[i] = String(items[i])
-	}
-	return bar
-}
-
-func cli(items ...int) []Comparable {
-	bar := make([]Comparable, len(items))
-	for i := 0; i < len(items); i++ {
-		bar[i] = Int(items[i])
-	}
-	return bar
-}
-
-func TestBinarySearch(t *testing.T) {
+func TestStringBinarySearch(t *testing.T) {
 	t.Run("greater than or equal to", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
-			i := searchGreaterThanOrEqualTo(String("A"), cls())
+			i := stringSearchGreaterThanOrEqualTo("A", nil)
 			if got, want := i, 0; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 		t.Run("single item list", func(t *testing.T) {
 			t.Run("key before", func(t *testing.T) {
-				i := searchGreaterThanOrEqualTo(String("A"), cls("B"))
+				i := stringSearchGreaterThanOrEqualTo("A", []string{"B"})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match", func(t *testing.T) {
-				i := searchGreaterThanOrEqualTo(String("B"), cls("B"))
+				i := stringSearchGreaterThanOrEqualTo("B", []string{"B"})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after", func(t *testing.T) {
-				i := searchGreaterThanOrEqualTo(String("C"), cls("B"))
+				i := stringSearchGreaterThanOrEqualTo("C", []string{"B"})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
@@ -83,43 +67,43 @@ func TestBinarySearch(t *testing.T) {
 		})
 		t.Run("multiple item list", func(t *testing.T) {
 			t.Run("key before first", func(t *testing.T) {
-				i := searchGreaterThanOrEqualTo(String("A"), cls("B", "D", "F"))
+				i := stringSearchGreaterThanOrEqualTo("A", []string{"B", "D", "F"})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match first", func(t *testing.T) {
-				i := searchGreaterThanOrEqualTo(String("B"), cls("B", "D", "F"))
+				i := stringSearchGreaterThanOrEqualTo("B", []string{"B", "D", "F"})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between first and second", func(t *testing.T) {
-				i := searchGreaterThanOrEqualTo(String("C"), cls("B", "D", "F"))
+				i := stringSearchGreaterThanOrEqualTo("C", []string{"B", "D", "F"})
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match second", func(t *testing.T) {
-				i := searchGreaterThanOrEqualTo(String("D"), cls("B", "D", "F"))
+				i := stringSearchGreaterThanOrEqualTo("D", []string{"B", "D", "F"})
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between second and third", func(t *testing.T) {
-				i := searchGreaterThanOrEqualTo(String("E"), cls("B", "D", "F"))
+				i := stringSearchGreaterThanOrEqualTo("E", []string{"B", "D", "F"})
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match third", func(t *testing.T) {
-				i := searchGreaterThanOrEqualTo(String("F"), cls("B", "D", "F"))
+				i := stringSearchGreaterThanOrEqualTo("F", []string{"B", "D", "F"})
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after third", func(t *testing.T) {
-				i := searchGreaterThanOrEqualTo(String("G"), cls("B", "D", "F"))
+				i := stringSearchGreaterThanOrEqualTo("G", []string{"B", "D", "F"})
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
@@ -128,26 +112,26 @@ func TestBinarySearch(t *testing.T) {
 	})
 	t.Run("less than or equal to", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
-			i := searchLessThanOrEqualTo(String("A"), cls())
+			i := stringSearchLessThanOrEqualTo("A", []string{})
 			if got, want := i, 0; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 		t.Run("single item list", func(t *testing.T) {
 			t.Run("key before", func(t *testing.T) {
-				i := searchLessThanOrEqualTo(String("A"), cls("B"))
+				i := stringSearchLessThanOrEqualTo("A", []string{"B"})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match", func(t *testing.T) {
-				i := searchLessThanOrEqualTo(String("B"), cls("B"))
+				i := stringSearchLessThanOrEqualTo("B", []string{"B"})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after", func(t *testing.T) {
-				i := searchLessThanOrEqualTo(String("C"), cls("B"))
+				i := stringSearchLessThanOrEqualTo("C", []string{"B"})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
@@ -155,43 +139,43 @@ func TestBinarySearch(t *testing.T) {
 		})
 		t.Run("multiple item list", func(t *testing.T) {
 			t.Run("key before first", func(t *testing.T) {
-				i := searchLessThanOrEqualTo(String("A"), cls("B", "D", "F"))
+				i := stringSearchLessThanOrEqualTo("A", []string{"B", "D", "F"})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match first", func(t *testing.T) {
-				i := searchLessThanOrEqualTo(String("B"), cls("B", "D", "F"))
+				i := stringSearchLessThanOrEqualTo("B", []string{"B", "D", "F"})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between first and second", func(t *testing.T) {
-				i := searchLessThanOrEqualTo(String("C"), cls("B", "D", "F"))
+				i := stringSearchLessThanOrEqualTo("C", []string{"B", "D", "F"})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match second", func(t *testing.T) {
-				i := searchLessThanOrEqualTo(String("D"), cls("B", "D", "F"))
+				i := stringSearchLessThanOrEqualTo("D", []string{"B", "D", "F"})
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between second and third", func(t *testing.T) {
-				i := searchLessThanOrEqualTo(String("E"), cls("B", "D", "F"))
+				i := stringSearchLessThanOrEqualTo("E", []string{"B", "D", "F"})
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match third", func(t *testing.T) {
-				i := searchLessThanOrEqualTo(String("F"), cls("B", "D", "F"))
+				i := stringSearchLessThanOrEqualTo("F", []string{"B", "D", "F"})
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after third", func(t *testing.T) {
-				i := searchLessThanOrEqualTo(String("G"), cls("B", "D", "F"))
+				i := stringSearchLessThanOrEqualTo("G", []string{"B", "D", "F"})
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
@@ -200,39 +184,39 @@ func TestBinarySearch(t *testing.T) {
 	})
 }
 
-func TestNewTreeReturnsErrorWhenInvalidOrder(t *testing.T) {
+func TestNewStringTreeReturnsErrorWhenInvalidOrder(t *testing.T) {
 	for _, v := range []int{0, -1, 1, 3, 11} {
-		_, err := NewTree(v)
+		_, err := NewStringTree(v)
 		if err == nil {
 			t.Errorf("GOT: %v; WANT: %v", err, fmt.Sprintf("power of 2: %d", v))
 		}
 	}
 }
 
-func TestInternalNodeMaybeSplit(t *testing.T) {
-	leafD := &leaf{
-		runts:  cls("d", "dd", "ddd"),
+func TestStringInternalNodeMaybeSplit(t *testing.T) {
+	leafD := &leafStringNode{
+		runts:  []string{"d", "dd", "ddd"},
 		values: []interface{}{1, 2, 3},
 	}
-	leafC := &leaf{
-		runts:  cls("c", "cc", "ccc"),
+	leafC := &leafStringNode{
+		runts:  []string{"c", "cc", "ccc"},
 		values: []interface{}{1, 2, 3},
 		next:   leafD,
 	}
-	leafB := &leaf{
-		runts:  cls("b", "bb", "bbb"),
+	leafB := &leafStringNode{
+		runts:  []string{"b", "bb", "bbb"},
 		values: []interface{}{1, 2, 3},
 		next:   leafC,
 	}
-	leafA := &leaf{
-		runts:  cls("a", "aa", "aaa"),
+	leafA := &leafStringNode{
+		runts:  []string{"a", "aa", "aaa"},
 		values: []interface{}{1, 2, 3},
 		next:   leafB,
 	}
 
-	ni := &internal{
-		runts:    cls("a", "b", "c", "d"),
-		children: []node{leafA, leafB, leafC, leafD},
+	ni := &internalStringNode{
+		runts:    []string{"a", "b", "c", "d"},
+		children: []stringNode{leafA, leafB, leafC, leafD},
 	}
 
 	t.Run("does nothing when not full", func(t *testing.T) {
@@ -243,13 +227,13 @@ func TestInternalNodeMaybeSplit(t *testing.T) {
 	})
 
 	t.Run("splits when full", func(t *testing.T) {
-		expectedLeft := &internal{
-			runts:    cls("a", "b"),
-			children: []node{leafA, leafB},
+		expectedLeft := &internalStringNode{
+			runts:    []string{"a", "b"},
+			children: []stringNode{leafA, leafB},
 		}
-		expectedRight := &internal{
-			runts:    cls("c", "d"),
-			children: []node{leafC, leafD},
+		expectedRight := &internalStringNode{
+			runts:    []string{"c", "d"},
+			children: []stringNode{leafC, leafD},
 		}
 
 		leftNode, rightNode := ni.MaybeSplit(4)
@@ -258,7 +242,7 @@ func TestInternalNodeMaybeSplit(t *testing.T) {
 		if leftNode == nil {
 			t.Fatalf("GOT: %v; WANT: %v", leftNode, "some node")
 		}
-		left, ok := leftNode.(*internal)
+		left, ok := leftNode.(*internalStringNode)
 		if !ok {
 			t.Fatalf("GOT: %v; WANT: %v", ok, true)
 		}
@@ -283,7 +267,7 @@ func TestInternalNodeMaybeSplit(t *testing.T) {
 		if rightNode == nil {
 			t.Fatalf("GOT: %v; WANT: %v", rightNode, "some node")
 		}
-		right, ok := rightNode.(*internal)
+		right, ok := rightNode.(*internalStringNode)
 		if !ok {
 			t.Fatalf("GOT: %v; WANT: %v", ok, true)
 		}
@@ -306,14 +290,14 @@ func TestInternalNodeMaybeSplit(t *testing.T) {
 	})
 }
 
-func TestInternalNodeInsertSmallerKey(t *testing.T) {
-	gimme := func() (*leaf, *leaf) {
-		leafB := &leaf{
-			runts:  cls("b", "bb"),
+func TestStringInternalNodeInsertSmallerKey(t *testing.T) {
+	gimme := func() (*leafStringNode, *leafStringNode) {
+		leafB := &leafStringNode{
+			runts:  []string{"b", "bb"},
 			values: []interface{}{1, 2},
 		}
-		leafA := &leaf{
-			runts:  cls("aa", "aaa"),
+		leafA := &leafStringNode{
+			runts:  []string{"aa", "aaa"},
 			values: []interface{}{2, 3},
 			next:   leafB,
 		}
@@ -321,28 +305,28 @@ func TestInternalNodeInsertSmallerKey(t *testing.T) {
 	}
 
 	leafA, leafB := gimme()
-	ni := &internal{
-		runts:    cls("aa", "b"),
-		children: []node{leafA, leafB},
+	ni := &internalStringNode{
+		runts:    []string{"aa", "b"},
+		children: []stringNode{leafA, leafB},
 	}
 
-	d := &tree{root: ni, order: 4}
+	d := &StringTree{root: ni, order: 4}
 
-	d.Insert(String("a"), 1)
+	d.Insert("a", 1)
 
-	if got, want := string(ni.runts[0].(String)), "a"; got != want {
+	if got, want := string(ni.runts[0]), "a"; got != want {
 		t.Fatalf("GOT: %v; WANT: %v", got, want)
 	}
 }
 
-func TestLeafNodeMaybeSplit(t *testing.T) {
-	gimme := func() (*leaf, *leaf) {
-		leafB := &leaf{
-			runts:  cls("b", "bb", "bbb", "bbbb"),
+func TestStringLeafNodeMaybeSplit(t *testing.T) {
+	gimme := func() (*leafStringNode, *leafStringNode) {
+		leafB := &leafStringNode{
+			runts:  []string{"b", "bb", "bbb", "bbbb"},
 			values: []interface{}{1, 2, 3, 4},
 		}
-		leafA := &leaf{
-			runts:  cls("a", "aa", "aaa", "aaaa"),
+		leafA := &leafStringNode{
+			runts:  []string{"a", "aa", "aaa", "aaaa"},
 			values: []interface{}{1, 2, 3, 4},
 			next:   leafB,
 		}
@@ -360,13 +344,13 @@ func TestLeafNodeMaybeSplit(t *testing.T) {
 	t.Run("splits non-right edge when full", func(t *testing.T) {
 		leafA, leafB := gimme()
 		leftNode, rightNode := leafA.MaybeSplit(4)
-		ensureLeaves(t, leftNode, &leaf{
-			runts:  cls("a", "aa"),
+		ensureStringLeaves(t, leftNode, &leafStringNode{
+			runts:  []string{"a", "aa"},
 			values: []interface{}{1, 2},
-			next:   rightNode.(*leaf),
+			next:   rightNode.(*leafStringNode),
 		})
-		ensureLeaves(t, rightNode, &leaf{
-			runts:  cls("aaa", "aaaa"),
+		ensureStringLeaves(t, rightNode, &leafStringNode{
+			runts:  []string{"aaa", "aaaa"},
 			values: []interface{}{3, 4},
 			next:   leafB,
 		})
@@ -377,106 +361,106 @@ func TestLeafNodeMaybeSplit(t *testing.T) {
 		if got, want := leafA.next, leftNode; got != want {
 			t.Fatalf("GOT: %v; WANT: %v", got, want)
 		}
-		ensureLeaves(t, leftNode, &leaf{
-			runts:  cls("b", "bb"),
+		ensureStringLeaves(t, leftNode, &leafStringNode{
+			runts:  []string{"b", "bb"},
 			values: []interface{}{1, 2},
-			next:   rightNode.(*leaf),
+			next:   rightNode.(*leafStringNode),
 		})
-		ensureLeaves(t, rightNode, &leaf{
-			runts:  cls("bbb", "bbbb"),
+		ensureStringLeaves(t, rightNode, &leafStringNode{
+			runts:  []string{"bbb", "bbbb"},
 			values: []interface{}{3, 4},
 			next:   nil,
 		})
 	})
 }
 
-func TestInsertIntoSingleLeafTree(t *testing.T) {
+func TestStringInsertIntoSingleLeafTree(t *testing.T) {
 	t.Run("when fewer than order elements", func(t *testing.T) {
 		t.Run("when empty", func(t *testing.T) {
-			d, _ := NewTree(4)
-			ln, ok := d.root.(*leaf)
+			d, _ := NewStringTree(4)
+			ln, ok := d.root.(*leafStringNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(String("30"), "thirty")
-			ensureLeaves(t, ln, &leaf{
-				runts:  cls("30"),
+			d.Insert("30", "thirty")
+			ensureStringLeaves(t, ln, &leafStringNode{
+				runts:  []string{"30"},
 				values: []interface{}{"thirty"},
 			})
 		})
 		t.Run("when less than first runt", func(t *testing.T) {
-			d, _ := NewTree(4)
-			ln, ok := d.root.(*leaf)
+			d, _ := NewStringTree(4)
+			ln, ok := d.root.(*leafStringNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(String("30"), "thirty")
-			d.Insert(String("10"), "ten")
-			ensureLeaves(t, ln, &leaf{
-				runts:  cls("10", "30"),
+			d.Insert("30", "thirty")
+			d.Insert("10", "ten")
+			ensureStringLeaves(t, ln, &leafStringNode{
+				runts:  []string{"10", "30"},
 				values: []interface{}{"ten", "thirty"},
 			})
 		})
 		t.Run("when update value", func(t *testing.T) {
-			d, _ := NewTree(4)
-			ln, ok := d.root.(*leaf)
+			d, _ := NewStringTree(4)
+			ln, ok := d.root.(*leafStringNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(String("30"), "thirty")
-			d.Insert(String("10"), "ten")
-			d.Insert(String("30"), "THIRTY")
-			ensureLeaves(t, ln, &leaf{
-				runts:  cls("10", "30"),
+			d.Insert("30", "thirty")
+			d.Insert("10", "ten")
+			d.Insert("30", "THIRTY")
+			ensureStringLeaves(t, ln, &leafStringNode{
+				runts:  []string{"10", "30"},
 				values: []interface{}{"ten", "THIRTY"},
 			})
 		})
 		t.Run("when between first and final runt", func(t *testing.T) {
-			d, _ := NewTree(4)
-			ln, ok := d.root.(*leaf)
+			d, _ := NewStringTree(4)
+			ln, ok := d.root.(*leafStringNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(String("30"), "thirty")
-			d.Insert(String("10"), "ten")
-			d.Insert(String("30"), "THIRTY")
-			d.Insert(String("20"), "twenty")
-			ensureLeaves(t, ln, &leaf{
-				runts:  cls("10", "20", "30"),
+			d.Insert("30", "thirty")
+			d.Insert("10", "ten")
+			d.Insert("30", "THIRTY")
+			d.Insert("20", "twenty")
+			ensureStringLeaves(t, ln, &leafStringNode{
+				runts:  []string{"10", "20", "30"},
 				values: []interface{}{"ten", "twenty", "THIRTY"},
 			})
 		})
 		t.Run("when after final runt", func(t *testing.T) {
-			d, _ := NewTree(4)
-			ln, ok := d.root.(*leaf)
+			d, _ := NewStringTree(4)
+			ln, ok := d.root.(*leafStringNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(String("30"), "thirty")
-			d.Insert(String("10"), "ten")
-			d.Insert(String("30"), "THIRTY")
-			d.Insert(String("20"), "twenty")
-			d.Insert(String("40"), "forty")
-			ensureLeaves(t, ln, &leaf{
-				runts:  cls("10", "20", "30", "40"),
+			d.Insert("30", "thirty")
+			d.Insert("10", "ten")
+			d.Insert("30", "THIRTY")
+			d.Insert("20", "twenty")
+			d.Insert("40", "forty")
+			ensureStringLeaves(t, ln, &leafStringNode{
+				runts:  []string{"10", "20", "30", "40"},
 				values: []interface{}{"ten", "twenty", "THIRTY", "forty"},
 			})
 		})
 	})
 
 	t.Run("when insertion splits single leaf node", func(t *testing.T) {
-		gimme := func() *tree {
-			d, _ := NewTree(4)
+		gimme := func() *StringTree {
+			d, _ := NewStringTree(4)
 			for k, v := range map[string]string{"10": "ten", "20": "twenty", "30": "thirty", "40": "forty"} {
-				d.Insert(String(k), v)
+				d.Insert(k, v)
 			}
 			// t.Logf("init root runts: %v\ninit root values: %v\n", d.root.(*leaf).runts, d.root.(*leaf).values)
 			return d
 		}
 		t.Run("when new key will be first node in left leaf", func(t *testing.T) {
 			d := gimme()
-			d.Insert(String("0"), "zero")
-			root, ok := d.root.(*internal)
+			d.Insert("0", "zero")
+			root, ok := d.root.(*internalStringNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -488,27 +472,27 @@ func TestInsertIntoSingleLeafTree(t *testing.T) {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			// ensure children nodes are as expected for this case
-			if got, want := string(root.runts[0].(String)), "0"; got != want {
+			if got, want := string(root.runts[0]), "0"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureLeaves(t, root.children[0], &leaf{
-				runts:  cls("0", "10", "20"),
+			ensureStringLeaves(t, root.children[0], &leafStringNode{
+				runts:  []string{"0", "10", "20"},
 				values: []interface{}{"zero", "ten", "twenty"},
-				next:   root.children[1].(*leaf),
+				next:   root.children[1].(*leafStringNode),
 			})
 
-			if got, want := string(root.runts[1].(String)), "30"; got != want {
+			if got, want := string(root.runts[1]), "30"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureLeaves(t, root.children[1], &leaf{
-				runts:  cls("30", "40"),
+			ensureStringLeaves(t, root.children[1], &leafStringNode{
+				runts:  []string{"30", "40"},
 				values: []interface{}{"thirty", "forty"},
 			})
 		})
 		t.Run("when new key is in middle", func(t *testing.T) {
 			d := gimme()
-			d.Insert(String("25"), "twenty-five")
-			root, ok := d.root.(*internal)
+			d.Insert("25", "twenty-five")
+			root, ok := d.root.(*internalStringNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -520,27 +504,27 @@ func TestInsertIntoSingleLeafTree(t *testing.T) {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			// ensure children nodes are as expected for this case
-			if got, want := string(root.runts[0].(String)), "10"; got != want {
+			if got, want := string(root.runts[0]), "10"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureLeaves(t, root.children[0], &leaf{
-				runts:  cls("10", "20", "25"),
+			ensureStringLeaves(t, root.children[0], &leafStringNode{
+				runts:  []string{"10", "20", "25"},
 				values: []interface{}{"ten", "twenty", "twenty-five"},
-				next:   root.children[1].(*leaf),
+				next:   root.children[1].(*leafStringNode),
 			})
 
-			if got, want := string(root.runts[1].(String)), "30"; got != want {
+			if got, want := string(root.runts[1]), "30"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureLeaves(t, root.children[1], &leaf{
-				runts:  cls("30", "40"),
+			ensureStringLeaves(t, root.children[1], &leafStringNode{
+				runts:  []string{"30", "40"},
 				values: []interface{}{"thirty", "forty"},
 			})
 		})
 		t.Run("when new key will be final node in right leaf", func(t *testing.T) {
 			d := gimme()
-			d.Insert(String("50"), "fifty")
-			root, ok := d.root.(*internal)
+			d.Insert("50", "fifty")
+			root, ok := d.root.(*internalStringNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -552,52 +536,53 @@ func TestInsertIntoSingleLeafTree(t *testing.T) {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			// ensure children nodes are as expected for this case
-			if got, want := string(root.runts[0].(String)), "10"; got != want {
+			if got, want := string(root.runts[0]), "10"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureLeaves(t, root.children[0], &leaf{
-				runts:  cls("10", "20"),
+			ensureStringLeaves(t, root.children[0], &leafStringNode{
+				runts:  []string{"10", "20"},
 				values: []interface{}{"ten", "twenty"},
-				next:   root.children[1].(*leaf),
+				next:   root.children[1].(*leafStringNode),
 			})
 
-			if got, want := string(root.runts[1].(String)), "30"; got != want {
+			if got, want := string(root.runts[1]), "30"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureLeaves(t, root.children[1], &leaf{
-				runts:  cls("30", "40", "50"),
+			ensureStringLeaves(t, root.children[1], &leafStringNode{
+				runts:  []string{"30", "40", "50"},
 				values: []interface{}{"thirty", "forty", "fifty"},
 			})
 		})
 	})
 }
 
-func TestSearch(t *testing.T) {
+func TestStringSearch(t *testing.T) {
 	t.Run("empty tree", func(t *testing.T) {
+		t.Skip("TODO")
 	})
 	t.Run("single-leaf tree", func(t *testing.T) {
 		t.Run("missing value", func(t *testing.T) {
-			d, _ := NewTree(16)
+			d, _ := NewStringTree(16)
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(String(strconv.Itoa(i)), i)
+					d.Insert(strconv.Itoa(i), i)
 				}
 			}
 
-			_, ok := d.Search(String("13"))
+			_, ok := d.Search("13")
 			if got, want := ok, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 		t.Run("existing value", func(t *testing.T) {
-			d, _ := NewTree(16)
+			d, _ := NewStringTree(16)
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(String(strconv.Itoa(i)), i)
+					d.Insert(strconv.Itoa(i), i)
 				}
 			}
 
-			value, ok := d.Search(String("8"))
+			value, ok := d.Search("8")
 			if got, want := ok, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -608,27 +593,27 @@ func TestSearch(t *testing.T) {
 	})
 	t.Run("multi-leaf tree", func(t *testing.T) {
 		t.Run("missing value", func(t *testing.T) {
-			d, _ := NewTree(4)
+			d, _ := NewStringTree(4)
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(String(strconv.Itoa(i)), i)
+					d.Insert(strconv.Itoa(i), i)
 				}
 			}
 
-			_, ok := d.Search(String("13"))
+			_, ok := d.Search("13")
 			if got, want := ok, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 		t.Run("existing value", func(t *testing.T) {
-			d, _ := NewTree(4)
+			d, _ := NewStringTree(4)
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(String(strconv.Itoa(i)), i)
+					d.Insert(strconv.Itoa(i), i)
 				}
 			}
 
-			value, ok := d.Search(String("8"))
+			value, ok := d.Search("8")
 			if got, want := ok, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -639,12 +624,12 @@ func TestSearch(t *testing.T) {
 	})
 }
 
-func TestCursor(t *testing.T) {
+func TestStringCursor(t *testing.T) {
 	t.Run("empty tree", func(t *testing.T) {
 		var values []int
 
-		d, _ := NewTree(4)
-		c := d.NewScanner(String(""))
+		d, _ := NewStringTree(4)
+		c := d.NewScanner("")
 		for c.Scan() {
 			_, v := c.Pair()
 			values = append(values, v.(int))
@@ -658,12 +643,12 @@ func TestCursor(t *testing.T) {
 		t.Run("scan for zero-value element", func(t *testing.T) {
 			var values []int
 
-			d, _ := NewTree(16)
+			d, _ := NewStringTree(16)
 			for i := 0; i < 15; i++ {
-				d.Insert(String(strconv.Itoa(i)), i)
+				d.Insert(strconv.Itoa(i), i)
 			}
 
-			c := d.NewScanner(String(""))
+			c := d.NewScanner("")
 			for c.Scan() {
 				_, v := c.Pair()
 				values = append(values, v.(int))
@@ -680,14 +665,14 @@ func TestCursor(t *testing.T) {
 		t.Run("scan for missing element", func(t *testing.T) {
 			var values []int
 
-			d, _ := NewTree(16)
+			d, _ := NewStringTree(16)
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(String(strconv.Itoa(i)), i)
+					d.Insert(strconv.Itoa(i), i)
 				}
 			}
 
-			c := d.NewScanner(String("13"))
+			c := d.NewScanner("13")
 			for c.Scan() {
 				_, v := c.Pair()
 				values = append(values, v.(int))
@@ -704,12 +689,12 @@ func TestCursor(t *testing.T) {
 		t.Run("scan for existing element", func(t *testing.T) {
 			var values []int
 
-			d, _ := NewTree(16)
+			d, _ := NewStringTree(16)
 			for i := 0; i < 15; i++ {
-				d.Insert(String(strconv.Itoa(i)), i)
+				d.Insert(strconv.Itoa(i), i)
 			}
 
-			c := d.NewScanner(String("13"))
+			c := d.NewScanner("13")
 			for c.Scan() {
 				_, v := c.Pair()
 				values = append(values, v.(int))
@@ -727,12 +712,12 @@ func TestCursor(t *testing.T) {
 	t.Run("multi-leaf tree", func(t *testing.T) {
 		var values []int
 
-		d, _ := NewTree(4)
+		d, _ := NewStringTree(4)
 		for i := 0; i < 15; i++ {
-			d.Insert(String(strconv.Itoa(i)), i)
+			d.Insert(strconv.Itoa(i), i)
 		}
 
-		c := d.NewScanner(String(""))
+		c := d.NewScanner("")
 		for c.Scan() {
 			_, v := c.Pair()
 			values = append(values, v.(int))

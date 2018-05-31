@@ -5,68 +5,32 @@ import (
 	"sync"
 )
 
-type Comparable interface {
-	Less(interface{}) bool
-	Greater(interface{}) bool
-	ZeroValue() Comparable
-}
-
-type String string
-
-func (a String) Less(b interface{}) bool {
-	bs, ok := b.(String)
-	return ok && string(a) < string(bs)
-}
-
-func (a String) Greater(b interface{}) bool {
-	bs, ok := b.(String)
-	return ok && string(a) > string(bs)
-}
-
-func (_ String) ZeroValue() Comparable { return String("") }
-
-type Int int
-
-func (a Int) Less(b interface{}) bool {
-	bi, ok := b.(Int)
-	return ok && int(a) < int(bi)
-}
-
-func (a Int) Greater(b interface{}) bool {
-	bi, ok := b.(Int)
-	return ok && int(a) > int(bi)
-}
-
-func (_ Int) ZeroValue() Comparable { return Int(0) }
-
-// searchGreaterThanOrEqualTo returns the index of the first value from values
-// that is greater than or equal to key.
-func searchGreaterThanOrEqualTo(key Comparable, values []Comparable) int {
+// stringSearchGreaterThanOrEqualTo returns the index of the first value from
+// values that is greater than or equal to key.
+func stringSearchGreaterThanOrEqualTo(key string, values []string) int {
 	// search for index of runt that is greater than or equal to key
 	var low int
 	var high = len(values) - 1
 	for low < high {
 		index := (low + high) >> 1
 		value := values[index]
-		// fmt.Fprintf(os.Stderr, "key: %v; low: %d; high: %d; index: %d; value: %v\n", key, low, high, index, value)
-		if key.Less(value) {
-			// fmt.Fprintf(os.Stderr, "key < value: %v < %v\n", key, value)
+		if key < value {
 			high = index
-		} else if key.Greater(value) {
-			// fmt.Fprintf(os.Stderr, "key > value: %v > %v; %T > %T\n", key, value, key, value)
+		} else if key > value {
 			low = index + 1
 		} else {
-			// fmt.Fprintf(os.Stderr, "key = value: %v = %v; %T = %T\n", key, value, key, value)
 			return index
 		}
 	}
 	return low
 }
 
-func searchLessThanOrEqualTo(key Comparable, values []Comparable) int {
-	index := searchGreaterThanOrEqualTo(key, values)
+// stringSearchLessThanOrEqualTo returns the index of the first value from
+// values that is less than or equal to key.
+func stringSearchLessThanOrEqualTo(key string, values []string) int {
+	index := stringSearchGreaterThanOrEqualTo(key, values)
 	// convert result to less than or equal to
-	if index == len(values) || key.Less(values[index]) {
+	if index == len(values) || key < values[index] {
 		if index > 0 {
 			return index - 1
 		}
@@ -74,44 +38,47 @@ func searchLessThanOrEqualTo(key Comparable, values []Comparable) int {
 	return index
 }
 
-// node represents either an internal or a leaf node
-type node interface {
+// stringNode represents either an internal or a leaf node for a tree using
+// string keys.
+type stringNode interface {
 	IsInternal() bool
-	MaybeSplit(order int) (node, node)
-	Smallest() Comparable
+	MaybeSplit(order int) (stringNode, stringNode)
+	Smallest() string
 	Lock()
 	Unlock()
 }
 
-// internal node is an in-memory internal node
-type internal struct {
-	runts []Comparable
+// internalStringNode represents either an internal node for a tree using string
+// keys.
+type internalStringNode struct {
+	runts []string
 
-	// children[i] points to child node with values greater than or equal to runts[i]
-	children []node
+	// children[i] points to child node with values greater than or equal to
+	// runts[i]
+	children []stringNode
 
 	lock sync.Mutex
 }
 
-func (i *internal) IsInternal() bool { return true }
+func (i *internalStringNode) IsInternal() bool { return true }
 
-func (i *internal) Lock() { i.lock.Lock() }
+func (i *internalStringNode) Lock() { i.lock.Lock() }
 
-func (i *internal) Unlock() { i.lock.Unlock() }
+func (i *internalStringNode) Unlock() { i.lock.Unlock() }
 
 // MaybeSplit splits the node, giving half of its values to its new sibling,
 // when the node is too full to accept any more values.
 //
 // NOTE: This loop assumes the tree's order is a multiple of 2, which must be
 // guarded for at tree instantiation time.
-func (i *internal) MaybeSplit(order int) (node, node) {
+func (i *internalStringNode) MaybeSplit(order int) (stringNode, stringNode) {
 	if len(i.runts) < order {
 		return i, nil
 	}
 	newNodeRunts := order >> 1
-	sibling := &internal{
-		runts:    make([]Comparable, newNodeRunts, order),
-		children: make([]node, newNodeRunts, order),
+	sibling := &internalStringNode{
+		runts:    make([]string, newNodeRunts, order),
+		children: make([]stringNode, newNodeRunts, order),
 	}
 	// Right half of this node moves to sibling.
 	for j := 0; j < newNodeRunts; j++ {
@@ -124,39 +91,39 @@ func (i *internal) MaybeSplit(order int) (node, node) {
 	return i, sibling
 }
 
-func (i *internal) Smallest() Comparable {
+func (i *internalStringNode) Smallest() string {
 	if len(i.runts) == 0 {
 		panic("internal node has no children")
 	}
 	return i.runts[0]
 }
 
-// leaf represents a node that contains keys and values
-type leaf struct {
-	runts  []Comparable
+// leafStringNode represents either a leaf node for a tree using string keys.
+type leafStringNode struct {
+	runts  []string
 	values []interface{}
-	next   *leaf // points to next leaf to allow enumeration
+	next   *leafStringNode // points to next leaf to allow enumeration
 	lock   sync.Mutex
 }
 
-func (l *leaf) IsInternal() bool { return false }
+func (l *leafStringNode) IsInternal() bool { return false }
 
-func (l *leaf) Lock() { l.lock.Lock() }
+func (l *leafStringNode) Lock() { l.lock.Lock() }
 
-func (l *leaf) Unlock() { l.lock.Unlock() }
+func (l *leafStringNode) Unlock() { l.lock.Unlock() }
 
 // MaybeSplit splits the node, giving half of its values to its new sibling,
 // when the node is too full to accept any more values.
 //
 // NOTE: This loop assumes the tree's order is a multiple of 2, which must be
 // guarded for at tree instantiation time.
-func (l *leaf) MaybeSplit(order int) (node, node) {
+func (l *leafStringNode) MaybeSplit(order int) (stringNode, stringNode) {
 	if len(l.runts) < order {
 		return l, nil
 	}
 	newNodeRunts := order >> 1
-	sibling := &leaf{
-		runts:  make([]Comparable, newNodeRunts, order),
+	sibling := &leafStringNode{
+		runts:  make([]string, newNodeRunts, order),
 		values: make([]interface{}, newNodeRunts, order),
 		next:   l.next,
 	}
@@ -172,43 +139,47 @@ func (l *leaf) MaybeSplit(order int) (node, node) {
 	return l, sibling
 }
 
-func (l *leaf) Smallest() Comparable {
+func (l *leafStringNode) Smallest() string {
 	if len(l.runts) == 0 {
 		panic("leaf node has no children")
 	}
 	return l.runts[0]
 }
 
-type tree struct {
-	root  node
+// StringTree is a B+Tree of elements using string keys.
+type StringTree struct {
+	root  stringNode
 	order int
 }
 
-func NewTree(order int) (*tree, error) {
+// NewStringTree returns a newly initialized StringTree of the specified order.
+func NewStringTree(order int) (*StringTree, error) {
 	if order <= 0 || order%2 == 1 {
 		return nil, fmt.Errorf("cannot create tree when order is not a multiple of 2: %d", order)
 	}
-	return &tree{
-		root: &leaf{
-			runts:  make([]Comparable, 0, order),
+	return &StringTree{
+		root: &leafStringNode{
+			runts:  make([]string, 0, order),
 			values: make([]interface{}, 0, order),
 		},
 		order: order,
 	}, nil
 }
 
-func (t *tree) Insert(key Comparable, value interface{}) {
+// Insert inserts the key-value pair into the tree, replacing the existing value
+// with the new value if the key is already in the tree.
+func (t *StringTree) Insert(key string, value interface{}) {
 	n := t.root
 	n.Lock()
 
 	for n.IsInternal() {
-		parent := n.(*internal)
-		index := searchLessThanOrEqualTo(key, parent.runts)
+		parent := n.(*internalStringNode)
+		index := stringSearchLessThanOrEqualTo(key, parent.runts)
 		child := parent.children[index]
 		child.Lock()
 
 		if index == 0 {
-			if smallest := child.Smallest(); key.Less(smallest) {
+			if smallest := child.Smallest(); key < smallest {
 				// preemptively update smallest
 				parent.runts[0] = key
 			}
@@ -217,19 +188,19 @@ func (t *tree) Insert(key Comparable, value interface{}) {
 		c, s := child.MaybeSplit(t.order)
 		if s != nil {
 			// insert sibling to the right of current node
-			parent.runts = append(parent.runts, key.ZeroValue())
+			parent.runts = append(parent.runts, "")
 			parent.children = append(parent.children, nil)
 			copy(parent.runts[index+2:], parent.runts[index+1:])
 			copy(parent.children[index+2:], parent.children[index+1:])
 			sSmallest := s.Smallest()
 			parent.children[index+1] = s
 			// decide whether we need to go to original child or sibling
-			if key.Less(sSmallest) {
+			if key < sSmallest {
 				child = c
 			} else {
 				child.Unlock() // release lock on child
 				s.Lock()       // and grab lock on its new sibling
-				if key.Less(sSmallest) {
+				if key < sSmallest {
 					sSmallest = key
 				}
 				child = s
@@ -241,7 +212,7 @@ func (t *tree) Insert(key Comparable, value interface{}) {
 		n = child
 	}
 	// POST: at bottom level, which is a leaf node
-	ln := n.(*leaf)
+	ln := n.(*leafStringNode)
 
 	c, s := ln.MaybeSplit(t.order)
 	if s != nil {
@@ -250,18 +221,18 @@ func (t *tree) Insert(key Comparable, value interface{}) {
 		// it was the parent's child.
 		cSmallest := c.Smallest()
 		sSmallest := s.Smallest()
-		if key.Less(cSmallest) {
+		if key < cSmallest {
 			cSmallest = key
 		}
-		t.root = &internal{
-			runts:    []Comparable{cSmallest, sSmallest},
-			children: []node{c, s},
+		t.root = &internalStringNode{
+			runts:    []string{cSmallest, sSmallest},
+			children: []stringNode{c, s},
 		}
-		if key.Less(sSmallest) {
-			ln = c.(*leaf)
+		if key < sSmallest {
+			ln = c.(*leafStringNode)
 		} else {
 			ln.Unlock() // release lock on previous leaf
-			ln = s.(*leaf)
+			ln = s.(*leafStringNode)
 			ln.Lock() // acquire lock on leaf's new sibling
 		}
 	}
@@ -269,14 +240,14 @@ func (t *tree) Insert(key Comparable, value interface{}) {
 	// When the new value will become the first element in a leaf, which is only
 	// possible for an empty tree, or when new key comes after final leaf runt,
 	// a simple append will suffice.
-	if len(ln.runts) == 0 || key.Greater(ln.runts[len(ln.runts)-1]) {
+	if len(ln.runts) == 0 || key > ln.runts[len(ln.runts)-1] {
 		ln.runts = append(ln.runts, key)
 		ln.values = append(ln.values, value)
 		ln.Unlock()
 		return
 	}
 
-	index := searchGreaterThanOrEqualTo(key, ln.runts)
+	index := stringSearchGreaterThanOrEqualTo(key, ln.runts)
 
 	if ln.runts[index] == key {
 		// When the key matches the runt, merely need to update the value.
@@ -288,7 +259,7 @@ func (t *tree) Insert(key Comparable, value interface{}) {
 	// Make room for and insert the new key-value pair into leaf.
 
 	// Append zero values to make room in arrays
-	ln.runts = append(ln.runts, key.ZeroValue())
+	ln.runts = append(ln.runts, "")
 	ln.values = append(ln.values, nil)
 	// Shift elements to the right to make room for new data
 	copy(ln.runts[index+1:], ln.runts[index:])
@@ -300,20 +271,20 @@ func (t *tree) Insert(key Comparable, value interface{}) {
 }
 
 // Search returns the value associated with key from the tree.
-func (t *tree) Search(key Comparable) (interface{}, bool) {
+func (t *StringTree) Search(key string) (interface{}, bool) {
 	var value interface{}
 	var ok bool
 	n := t.root
 	n.Lock()
 	for n.IsInternal() {
-		parent := n.(*internal)
-		child := parent.children[searchLessThanOrEqualTo(key, parent.runts)]
+		parent := n.(*internalStringNode)
+		child := parent.children[stringSearchLessThanOrEqualTo(key, parent.runts)]
 		child.Lock()
 		parent.Unlock()
 		n = child
 	}
-	l := n.(*leaf)
-	i := searchGreaterThanOrEqualTo(key, l.runts)
+	l := n.(*leafStringNode)
+	i := stringSearchGreaterThanOrEqualTo(key, l.runts)
 	if l.runts[i] == key {
 		value = l.values[i]
 		ok = true
@@ -322,7 +293,7 @@ func (t *tree) Search(key Comparable) (interface{}, bool) {
 	return value, ok
 }
 
-// NewScanner returns a Cursor that iteratively returns key-value pairs from the
+// NewScanner returns a cursor that iteratively returns key-value pairs from the
 // tree in ascending order starting at key, or if key is not found the next key,
 // and ending after all successive pairs have been returned.
 //
@@ -330,37 +301,38 @@ func (t *tree) Search(key Comparable) (interface{}, bool) {
 // nodes, which may block other operations on the tree that require modification
 // of the locked node. The leaf node is only unlocked either by closing the
 // Cursor, or after all key-value pairs have been visited using Scan.
-func (t *tree) NewScanner(key Comparable) *Cursor {
+func (t *StringTree) NewScanner(key string) *StringCursor {
 	n := t.root
 	n.Lock()
 	for n.IsInternal() {
-		parent := n.(*internal)
-		child := parent.children[searchLessThanOrEqualTo(key, parent.runts)]
+		parent := n.(*internalStringNode)
+		child := parent.children[stringSearchLessThanOrEqualTo(key, parent.runts)]
 		child.Lock()
 		parent.Unlock()
 		n = child
 	}
-	ln := n.(*leaf)
-	return newCursor(ln, searchGreaterThanOrEqualTo(key, ln.runts))
+	ln := n.(*leafStringNode)
+	return newStringCursor(ln, stringSearchGreaterThanOrEqualTo(key, ln.runts))
 }
 
-// Cursor is used to enumerate key-value pairs from the tree in ascending order.
-type Cursor struct {
-	l *leaf
+// StringCursor is used to enumerate key-value pairs from the tree in ascending
+// order.
+type StringCursor struct {
+	l *leafStringNode
 	i int
 }
 
-func newCursor(l *leaf, i int) *Cursor {
+func newStringCursor(l *leafStringNode, i int) *StringCursor {
 	// Initialize cursor with index one smaller than requested, so initial scan
 	// lines up the cursor to reference the desired key-value pair.
-	return &Cursor{l: l, i: i - 1}
+	return &StringCursor{l: l, i: i - 1}
 }
 
 // Close releases the lock on the leaf node under the cursor. This method is
 // provided to signal no further intention of scanning the remainder key-value
 // pairs in the tree. It is not necessary to call Close if Scan is called
 // repeatedly until Scan returns false.
-func (c *Cursor) Close() error {
+func (c *StringCursor) Close() error {
 	if c.l != nil {
 		c.l.Unlock()
 		c.l = nil
@@ -368,16 +340,17 @@ func (c *Cursor) Close() error {
 	return nil
 }
 
-// Pair returns the key-value pair referenced by the Cursor.
-func (c *Cursor) Pair() (Comparable, interface{}) {
+// Pair returns the key-value pair referenced by the cursor.
+func (c *StringCursor) Pair() (string, interface{}) {
 	return c.l.runts[c.i], c.l.values[c.i]
 }
 
 // Scan advances the cursor to reference the next key-value pair in the tree in
 // ascending order, and returns true when there is at least one more key-value
 // pair to be observed with the Pair method. If the final key-value pair has
-// already been observed, this unlocks the final leaf in the tree and returns false.
-func (c *Cursor) Scan() bool {
+// already been observed, this unlocks the final leaf in the tree and returns
+// false.
+func (c *StringCursor) Scan() bool {
 	if c.i++; c.i == len(c.l.runts) {
 		if c.l.next == nil {
 			c.l.Unlock()
