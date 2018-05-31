@@ -6,7 +6,8 @@ import (
 )
 
 // Comparable data structures can be used as the keys for a ComparableTree. The
-// below is a trivial example of a comparable data structure using strings:
+// below is a trivial example of a comparable data structure using strings. The
+// ZeroValue method ought to return the zero-value for a data-structure.
 //
 //     type String string
 //
@@ -311,6 +312,115 @@ func (t *ComparableTree) Search(key Comparable) (interface{}, bool) {
 	}
 	l.Unlock()
 	return value, ok
+}
+
+// Update searches for key and invokes callback with key's associated value,
+// waits for callback to return a new value, and stores callback's return value
+// as the new value for key. When key is not found, callback will be invoked
+// with nil and false to signify the key was not found. After this method
+// returns, the key will exist in the tree with the new value returned by the
+// callback function.
+func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool) interface{}) {
+	n := t.root
+	n.Lock()
+
+	for n.IsInternal() {
+		parent := n.(*comparableInternalNode)
+		index := comparableSearchLessThanOrEqualTo(key, parent.runts)
+		child := parent.children[index]
+		child.Lock()
+
+		if index == 0 {
+			if smallest := child.Smallest(); key.Less(smallest) {
+				// preemptively update smallest value
+				parent.runts[0] = key
+			}
+		}
+
+		c, s := child.MaybeSplit(t.order)
+		if s != nil {
+			// insert sibling to the right of current node
+			parent.runts = append(parent.runts, key.ZeroValue())
+			parent.children = append(parent.children, nil)
+			copy(parent.runts[index+2:], parent.runts[index+1:])
+			copy(parent.children[index+2:], parent.children[index+1:])
+			sSmallest := s.Smallest()
+			parent.children[index+1] = s
+			// decide whether we need to go to original child or sibling
+			if key.Less(sSmallest) {
+				child = c
+			} else {
+				child.Unlock() // release lock on child
+				s.Lock()       // and grab lock on its new sibling
+				if key.Less(sSmallest) {
+					sSmallest = key
+				}
+				child = s
+			}
+			parent.runts[index+1] = sSmallest
+		}
+		// POST: tail end recursion to intended child
+		parent.Unlock() // release lock on this node before go to child locked above
+		n = child
+	}
+	// POST: at bottom level, which is a leaf node
+	ln := n.(*comparableLeafNode)
+
+	c, s := ln.MaybeSplit(t.order)
+	if s != nil {
+		// Only possible to get here if the root is a full leaf, because if
+		// there were a parent node, it would have already split this node when
+		// it was the parent's child.
+		cSmallest := c.Smallest()
+		sSmallest := s.Smallest()
+		if key.Less(cSmallest) {
+			cSmallest = key
+		}
+		t.root = &comparableInternalNode{
+			runts:    []Comparable{cSmallest, sSmallest},
+			children: []comparableNode{c, s},
+		}
+		if key.Less(sSmallest) {
+			ln = c.(*comparableLeafNode)
+		} else {
+			ln.Unlock() // release lock on previous leaf
+			ln = s.(*comparableLeafNode)
+			ln.Lock() // acquire lock on leaf's new sibling
+		}
+	}
+
+	// When the new value will become the first element in a leaf, which is only
+	// possible for an empty tree, or when new key comes after final leaf runt,
+	// a simple append will suffice.
+	if len(ln.runts) == 0 || key.Greater(ln.runts[len(ln.runts)-1]) {
+		value := callback(nil, false)
+		ln.runts = append(ln.runts, key)
+		ln.values = append(ln.values, value)
+		ln.Unlock()
+		return
+	}
+
+	index := comparableSearchGreaterThanOrEqualTo(key, ln.runts)
+
+	if ln.runts[index] == key {
+		// When the key matches the runt, merely need to update the value.
+		ln.values[index] = callback(ln.values[index], true)
+		ln.Unlock()
+		return
+	}
+
+	// Make room for and insert the new key-value pair into leaf.
+
+	// Append zero values to make room in arrays
+	ln.runts = append(ln.runts, key.ZeroValue())
+	ln.values = append(ln.values, nil)
+	// Shift elements to the right to make room for new data
+	copy(ln.runts[index+1:], ln.runts[index:])
+	copy(ln.values[index+1:], ln.values[index:])
+	// Store the new data
+	ln.runts[index] = key
+	ln.values[index] = callback(nil, false)
+	ln.Unlock()
 }
 
 // NewScanner returns a cursor that iteratively returns key-value pairs from the

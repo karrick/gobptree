@@ -6,12 +6,12 @@ import (
 	"testing"
 )
 
-func ensureStringLeaves(t *testing.T, a stringNode, leafB *leafStringNode) {
+func ensureStringLeaves(t *testing.T, a stringNode, leafB *stringLeafNode) {
 	t.Helper()
 	if a == nil {
 		t.Fatalf("GOT: %v; WANT: %#v", a, leafB)
 	}
-	leafA, ok := a.(*leafStringNode)
+	leafA, ok := a.(*stringLeafNode)
 	if !ok {
 		t.Fatalf("GOT: %v; WANT: %#v", a, leafB)
 	}
@@ -194,27 +194,27 @@ func TestNewStringTreeReturnsErrorWhenInvalidOrder(t *testing.T) {
 }
 
 func TestStringInternalNodeMaybeSplit(t *testing.T) {
-	leafD := &leafStringNode{
+	leafD := &stringLeafNode{
 		runts:  []string{"d", "dd", "ddd"},
 		values: []interface{}{1, 2, 3},
 	}
-	leafC := &leafStringNode{
+	leafC := &stringLeafNode{
 		runts:  []string{"c", "cc", "ccc"},
 		values: []interface{}{1, 2, 3},
 		next:   leafD,
 	}
-	leafB := &leafStringNode{
+	leafB := &stringLeafNode{
 		runts:  []string{"b", "bb", "bbb"},
 		values: []interface{}{1, 2, 3},
 		next:   leafC,
 	}
-	leafA := &leafStringNode{
+	leafA := &stringLeafNode{
 		runts:  []string{"a", "aa", "aaa"},
 		values: []interface{}{1, 2, 3},
 		next:   leafB,
 	}
 
-	ni := &internalStringNode{
+	ni := &stringInternalNode{
 		runts:    []string{"a", "b", "c", "d"},
 		children: []stringNode{leafA, leafB, leafC, leafD},
 	}
@@ -227,11 +227,11 @@ func TestStringInternalNodeMaybeSplit(t *testing.T) {
 	})
 
 	t.Run("splits when full", func(t *testing.T) {
-		expectedLeft := &internalStringNode{
+		expectedLeft := &stringInternalNode{
 			runts:    []string{"a", "b"},
 			children: []stringNode{leafA, leafB},
 		}
-		expectedRight := &internalStringNode{
+		expectedRight := &stringInternalNode{
 			runts:    []string{"c", "d"},
 			children: []stringNode{leafC, leafD},
 		}
@@ -242,7 +242,7 @@ func TestStringInternalNodeMaybeSplit(t *testing.T) {
 		if leftNode == nil {
 			t.Fatalf("GOT: %v; WANT: %v", leftNode, "some node")
 		}
-		left, ok := leftNode.(*internalStringNode)
+		left, ok := leftNode.(*stringInternalNode)
 		if !ok {
 			t.Fatalf("GOT: %v; WANT: %v", ok, true)
 		}
@@ -267,7 +267,7 @@ func TestStringInternalNodeMaybeSplit(t *testing.T) {
 		if rightNode == nil {
 			t.Fatalf("GOT: %v; WANT: %v", rightNode, "some node")
 		}
-		right, ok := rightNode.(*internalStringNode)
+		right, ok := rightNode.(*stringInternalNode)
 		if !ok {
 			t.Fatalf("GOT: %v; WANT: %v", ok, true)
 		}
@@ -291,12 +291,12 @@ func TestStringInternalNodeMaybeSplit(t *testing.T) {
 }
 
 func TestStringInternalNodeInsertSmallerKey(t *testing.T) {
-	gimme := func() (*leafStringNode, *leafStringNode) {
-		leafB := &leafStringNode{
+	gimme := func() (*stringLeafNode, *stringLeafNode) {
+		leafB := &stringLeafNode{
 			runts:  []string{"b", "bb"},
 			values: []interface{}{1, 2},
 		}
-		leafA := &leafStringNode{
+		leafA := &stringLeafNode{
 			runts:  []string{"aa", "aaa"},
 			values: []interface{}{2, 3},
 			next:   leafB,
@@ -305,7 +305,7 @@ func TestStringInternalNodeInsertSmallerKey(t *testing.T) {
 	}
 
 	leafA, leafB := gimme()
-	ni := &internalStringNode{
+	ni := &stringInternalNode{
 		runts:    []string{"aa", "b"},
 		children: []stringNode{leafA, leafB},
 	}
@@ -320,12 +320,12 @@ func TestStringInternalNodeInsertSmallerKey(t *testing.T) {
 }
 
 func TestStringLeafNodeMaybeSplit(t *testing.T) {
-	gimme := func() (*leafStringNode, *leafStringNode) {
-		leafB := &leafStringNode{
+	gimme := func() (*stringLeafNode, *stringLeafNode) {
+		leafB := &stringLeafNode{
 			runts:  []string{"b", "bb", "bbb", "bbbb"},
 			values: []interface{}{1, 2, 3, 4},
 		}
-		leafA := &leafStringNode{
+		leafA := &stringLeafNode{
 			runts:  []string{"a", "aa", "aaa", "aaaa"},
 			values: []interface{}{1, 2, 3, 4},
 			next:   leafB,
@@ -344,12 +344,12 @@ func TestStringLeafNodeMaybeSplit(t *testing.T) {
 	t.Run("splits non-right edge when full", func(t *testing.T) {
 		leafA, leafB := gimme()
 		leftNode, rightNode := leafA.MaybeSplit(4)
-		ensureStringLeaves(t, leftNode, &leafStringNode{
+		ensureStringLeaves(t, leftNode, &stringLeafNode{
 			runts:  []string{"a", "aa"},
 			values: []interface{}{1, 2},
-			next:   rightNode.(*leafStringNode),
+			next:   rightNode.(*stringLeafNode),
 		})
-		ensureStringLeaves(t, rightNode, &leafStringNode{
+		ensureStringLeaves(t, rightNode, &stringLeafNode{
 			runts:  []string{"aaa", "aaaa"},
 			values: []interface{}{3, 4},
 			next:   leafB,
@@ -361,12 +361,12 @@ func TestStringLeafNodeMaybeSplit(t *testing.T) {
 		if got, want := leafA.next, leftNode; got != want {
 			t.Fatalf("GOT: %v; WANT: %v", got, want)
 		}
-		ensureStringLeaves(t, leftNode, &leafStringNode{
+		ensureStringLeaves(t, leftNode, &stringLeafNode{
 			runts:  []string{"b", "bb"},
 			values: []interface{}{1, 2},
-			next:   rightNode.(*leafStringNode),
+			next:   rightNode.(*stringLeafNode),
 		})
-		ensureStringLeaves(t, rightNode, &leafStringNode{
+		ensureStringLeaves(t, rightNode, &stringLeafNode{
 			runts:  []string{"bbb", "bbbb"},
 			values: []interface{}{3, 4},
 			next:   nil,
@@ -378,46 +378,46 @@ func TestStringInsertIntoSingleLeafTree(t *testing.T) {
 	t.Run("when fewer than order elements", func(t *testing.T) {
 		t.Run("when empty", func(t *testing.T) {
 			d, _ := NewStringTree(4)
-			ln, ok := d.root.(*leafStringNode)
+			ln, ok := d.root.(*stringLeafNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
 			d.Insert("30", "thirty")
-			ensureStringLeaves(t, ln, &leafStringNode{
+			ensureStringLeaves(t, ln, &stringLeafNode{
 				runts:  []string{"30"},
 				values: []interface{}{"thirty"},
 			})
 		})
 		t.Run("when less than first runt", func(t *testing.T) {
 			d, _ := NewStringTree(4)
-			ln, ok := d.root.(*leafStringNode)
+			ln, ok := d.root.(*stringLeafNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
 			d.Insert("30", "thirty")
 			d.Insert("10", "ten")
-			ensureStringLeaves(t, ln, &leafStringNode{
+			ensureStringLeaves(t, ln, &stringLeafNode{
 				runts:  []string{"10", "30"},
 				values: []interface{}{"ten", "thirty"},
 			})
 		})
 		t.Run("when update value", func(t *testing.T) {
 			d, _ := NewStringTree(4)
-			ln, ok := d.root.(*leafStringNode)
+			ln, ok := d.root.(*stringLeafNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
 			d.Insert("30", "thirty")
 			d.Insert("10", "ten")
 			d.Insert("30", "THIRTY")
-			ensureStringLeaves(t, ln, &leafStringNode{
+			ensureStringLeaves(t, ln, &stringLeafNode{
 				runts:  []string{"10", "30"},
 				values: []interface{}{"ten", "THIRTY"},
 			})
 		})
 		t.Run("when between first and final runt", func(t *testing.T) {
 			d, _ := NewStringTree(4)
-			ln, ok := d.root.(*leafStringNode)
+			ln, ok := d.root.(*stringLeafNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
@@ -425,14 +425,14 @@ func TestStringInsertIntoSingleLeafTree(t *testing.T) {
 			d.Insert("10", "ten")
 			d.Insert("30", "THIRTY")
 			d.Insert("20", "twenty")
-			ensureStringLeaves(t, ln, &leafStringNode{
+			ensureStringLeaves(t, ln, &stringLeafNode{
 				runts:  []string{"10", "20", "30"},
 				values: []interface{}{"ten", "twenty", "THIRTY"},
 			})
 		})
 		t.Run("when after final runt", func(t *testing.T) {
 			d, _ := NewStringTree(4)
-			ln, ok := d.root.(*leafStringNode)
+			ln, ok := d.root.(*stringLeafNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
@@ -441,7 +441,7 @@ func TestStringInsertIntoSingleLeafTree(t *testing.T) {
 			d.Insert("30", "THIRTY")
 			d.Insert("20", "twenty")
 			d.Insert("40", "forty")
-			ensureStringLeaves(t, ln, &leafStringNode{
+			ensureStringLeaves(t, ln, &stringLeafNode{
 				runts:  []string{"10", "20", "30", "40"},
 				values: []interface{}{"ten", "twenty", "THIRTY", "forty"},
 			})
@@ -460,7 +460,7 @@ func TestStringInsertIntoSingleLeafTree(t *testing.T) {
 		t.Run("when new key will be first node in left leaf", func(t *testing.T) {
 			d := gimme()
 			d.Insert("0", "zero")
-			root, ok := d.root.(*internalStringNode)
+			root, ok := d.root.(*stringInternalNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -475,16 +475,16 @@ func TestStringInsertIntoSingleLeafTree(t *testing.T) {
 			if got, want := string(root.runts[0]), "0"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureStringLeaves(t, root.children[0], &leafStringNode{
+			ensureStringLeaves(t, root.children[0], &stringLeafNode{
 				runts:  []string{"0", "10", "20"},
 				values: []interface{}{"zero", "ten", "twenty"},
-				next:   root.children[1].(*leafStringNode),
+				next:   root.children[1].(*stringLeafNode),
 			})
 
 			if got, want := string(root.runts[1]), "30"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureStringLeaves(t, root.children[1], &leafStringNode{
+			ensureStringLeaves(t, root.children[1], &stringLeafNode{
 				runts:  []string{"30", "40"},
 				values: []interface{}{"thirty", "forty"},
 			})
@@ -492,7 +492,7 @@ func TestStringInsertIntoSingleLeafTree(t *testing.T) {
 		t.Run("when new key is in middle", func(t *testing.T) {
 			d := gimme()
 			d.Insert("25", "twenty-five")
-			root, ok := d.root.(*internalStringNode)
+			root, ok := d.root.(*stringInternalNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -507,16 +507,16 @@ func TestStringInsertIntoSingleLeafTree(t *testing.T) {
 			if got, want := string(root.runts[0]), "10"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureStringLeaves(t, root.children[0], &leafStringNode{
+			ensureStringLeaves(t, root.children[0], &stringLeafNode{
 				runts:  []string{"10", "20", "25"},
 				values: []interface{}{"ten", "twenty", "twenty-five"},
-				next:   root.children[1].(*leafStringNode),
+				next:   root.children[1].(*stringLeafNode),
 			})
 
 			if got, want := string(root.runts[1]), "30"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureStringLeaves(t, root.children[1], &leafStringNode{
+			ensureStringLeaves(t, root.children[1], &stringLeafNode{
 				runts:  []string{"30", "40"},
 				values: []interface{}{"thirty", "forty"},
 			})
@@ -524,7 +524,7 @@ func TestStringInsertIntoSingleLeafTree(t *testing.T) {
 		t.Run("when new key will be final node in right leaf", func(t *testing.T) {
 			d := gimme()
 			d.Insert("50", "fifty")
-			root, ok := d.root.(*internalStringNode)
+			root, ok := d.root.(*stringInternalNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -539,16 +539,16 @@ func TestStringInsertIntoSingleLeafTree(t *testing.T) {
 			if got, want := string(root.runts[0]), "10"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureStringLeaves(t, root.children[0], &leafStringNode{
+			ensureStringLeaves(t, root.children[0], &stringLeafNode{
 				runts:  []string{"10", "20"},
 				values: []interface{}{"ten", "twenty"},
-				next:   root.children[1].(*leafStringNode),
+				next:   root.children[1].(*stringLeafNode),
 			})
 
 			if got, want := string(root.runts[1]), "30"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureStringLeaves(t, root.children[1], &leafStringNode{
+			ensureStringLeaves(t, root.children[1], &stringLeafNode{
 				runts:  []string{"30", "40", "50"},
 				values: []interface{}{"thirty", "forty", "fifty"},
 			})
@@ -730,5 +730,27 @@ func TestStringCursor(t *testing.T) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		}
+	})
+}
+
+func TestStringTreeUpdate(t *testing.T) {
+	d, _ := NewStringTree(8)
+	d.Update("A", func(value interface{}, ok bool) interface{} {
+		if got, want := ok, false; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := value, error(nil); got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		return "first"
+	})
+	d.Update("A", func(value interface{}, ok bool) interface{} {
+		if got, want := ok, true; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := value, "first"; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		return value
 	})
 }

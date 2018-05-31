@@ -759,3 +759,25 @@ func TestComparableTreeCursor(t *testing.T) {
 		}
 	})
 }
+
+func TestComparableTreeUpdate(t *testing.T) {
+	d, _ := NewComparableTree(8)
+	d.Update(String("A"), func(value interface{}, ok bool) interface{} {
+		if got, want := ok, false; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := value, error(nil); got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		return "first"
+	})
+	d.Update(String("A"), func(value interface{}, ok bool) interface{} {
+		if got, want := ok, true; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := value, "first"; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		return value
+	})
+}
