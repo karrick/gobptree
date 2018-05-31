@@ -751,6 +751,30 @@ func TestStringTreeUpdate(t *testing.T) {
 		if got, want := value, "first"; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		return value
+		return "second"
 	})
+	value, ok := d.Search("A")
+	if got, want := ok, true; got != want {
+		t.Errorf("GOT: %v; WANT: %v", got, want)
+	}
+	if got, want := value, "second"; got != want {
+		t.Errorf("GOT: %v; WANT: %v", got, want)
+	}
+	d.Insert("C", "third")
+	d.Update("B", func(value interface{}, ok bool) interface{} {
+		if got, want := ok, false; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := value, error(nil); got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		return "fourth"
+	})
+	value, ok = d.Search("B")
+	if got, want := ok, true; got != want {
+		t.Errorf("GOT: %v; WANT: %v", got, want)
+	}
+	if got, want := value, "fourth"; got != want {
+		t.Errorf("GOT: %v; WANT: %v", got, want)
+	}
 }
