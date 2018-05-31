@@ -193,9 +193,30 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 	n := t.root
 	n.Lock()
 
+	// Split the root node when required. Regardless of whether the root is an
+	// internal or a leaf node, the root shall become an internal node.
+	if left, right := n.MaybeSplit(t.order); right != nil {
+		leftSmallest := left.Smallest()
+		if key.Less(leftSmallest) {
+			leftSmallest = key
+		}
+		rightSmallest := right.Smallest()
+		t.root = &comparableInternalNode{
+			runts:    []Comparable{leftSmallest, rightSmallest},
+			children: []comparableNode{left, right},
+		}
+		// Decide whether we need to descend left or right.
+		if !key.Less(rightSmallest) {
+			right.Lock()
+			n.Unlock() // unlock the left, since same node
+			n = right
+		}
+	}
+
 	for n.IsInternal() {
 		parent := n.(*comparableInternalNode)
 		index := comparableSearchLessThanOrEqualTo(key, parent.runts)
+
 		child := parent.children[index]
 		child.Lock()
 
@@ -206,57 +227,30 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 			}
 		}
 
-		c, s := child.MaybeSplit(t.order)
-		if s != nil {
-			// insert sibling to the right of current node
+		// Split the internal node when required.
+		if _, right := child.MaybeSplit(t.order); right != nil {
+			// Insert sibling to the right of current node.
 			parent.runts = append(parent.runts, key.ZeroValue())
 			parent.children = append(parent.children, nil)
 			copy(parent.runts[index+2:], parent.runts[index+1:])
 			copy(parent.children[index+2:], parent.children[index+1:])
-			sSmallest := s.Smallest()
-			parent.children[index+1] = s
-			// decide whether we need to go to original child or sibling
-			if key.Less(sSmallest) {
-				child = c
-			} else {
+			parent.children[index+1] = right
+			rightSmallest := right.Smallest()
+			parent.runts[index+1] = rightSmallest
+			// Decide whether we need to descend left or right.
+			if !key.Less(rightSmallest) {
+				right.Lock()   // grab lock on its new sibling
 				child.Unlock() // release lock on child
-				s.Lock()       // and grab lock on its new sibling
-				if key.Less(sSmallest) {
-					sSmallest = key
-				}
-				child = s
+				child = right  // descend to newly created sibling
 			}
-			parent.runts[index+1] = sSmallest
 		}
+
 		// POST: tail end recursion to intended child
 		parent.Unlock() // release lock on this node before go to child locked above
 		n = child
 	}
-	// POST: at bottom level, which is a leaf node
-	ln := n.(*comparableLeafNode)
 
-	c, s := ln.MaybeSplit(t.order)
-	if s != nil {
-		// Only possible to get here if the root is a full leaf, because if
-		// there were a parent node, it would have already split this node when
-		// it was the parent's child.
-		cSmallest := c.Smallest()
-		sSmallest := s.Smallest()
-		if key.Less(cSmallest) {
-			cSmallest = key
-		}
-		t.root = &comparableInternalNode{
-			runts:    []Comparable{cSmallest, sSmallest},
-			children: []comparableNode{c, s},
-		}
-		if key.Less(sSmallest) {
-			ln = c.(*comparableLeafNode)
-		} else {
-			ln.Unlock() // release lock on previous leaf
-			ln = s.(*comparableLeafNode)
-			ln.Lock() // acquire lock on leaf's new sibling
-		}
-	}
+	ln := n.(*comparableLeafNode)
 
 	// When the new value will become the first element in a leaf, which is only
 	// possible for an empty tree, or when new key comes after final leaf runt,
@@ -324,9 +318,30 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 	n := t.root
 	n.Lock()
 
+	// Split the root node when required. Regardless of whether the root is an
+	// internal or a leaf node, the root shall become an internal node.
+	if left, right := n.MaybeSplit(t.order); right != nil {
+		leftSmallest := left.Smallest()
+		if key.Less(leftSmallest) {
+			leftSmallest = key
+		}
+		rightSmallest := right.Smallest()
+		t.root = &comparableInternalNode{
+			runts:    []Comparable{leftSmallest, rightSmallest},
+			children: []comparableNode{left, right},
+		}
+		// Decide whether we need to descend left or right.
+		if !key.Less(rightSmallest) {
+			right.Lock()
+			n.Unlock() // unlock the left, since same node
+			n = right
+		}
+	}
+
 	for n.IsInternal() {
 		parent := n.(*comparableInternalNode)
 		index := comparableSearchLessThanOrEqualTo(key, parent.runts)
+
 		child := parent.children[index]
 		child.Lock()
 
@@ -337,57 +352,30 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 			}
 		}
 
-		c, s := child.MaybeSplit(t.order)
-		if s != nil {
-			// insert sibling to the right of current node
+		// Split the internal node when required.
+		if _, right := child.MaybeSplit(t.order); right != nil {
+			// Insert sibling to the right of current node.
 			parent.runts = append(parent.runts, key.ZeroValue())
 			parent.children = append(parent.children, nil)
 			copy(parent.runts[index+2:], parent.runts[index+1:])
 			copy(parent.children[index+2:], parent.children[index+1:])
-			sSmallest := s.Smallest()
-			parent.children[index+1] = s
-			// decide whether we need to go to original child or sibling
-			if key.Less(sSmallest) {
-				child = c
-			} else {
+			parent.children[index+1] = right
+			rightSmallest := right.Smallest()
+			parent.runts[index+1] = rightSmallest
+			// Decide whether we need to descend left or right.
+			if !key.Less(rightSmallest) {
+				right.Lock()   // grab lock on its new sibling
 				child.Unlock() // release lock on child
-				s.Lock()       // and grab lock on its new sibling
-				if key.Less(sSmallest) {
-					sSmallest = key
-				}
-				child = s
+				child = right  // descend to newly created sibling
 			}
-			parent.runts[index+1] = sSmallest
 		}
+
 		// POST: tail end recursion to intended child
 		parent.Unlock() // release lock on this node before go to child locked above
 		n = child
 	}
-	// POST: at bottom level, which is a leaf node
-	ln := n.(*comparableLeafNode)
 
-	c, s := ln.MaybeSplit(t.order)
-	if s != nil {
-		// Only possible to get here if the root is a full leaf, because if
-		// there were a parent node, it would have already split this node when
-		// it was the parent's child.
-		cSmallest := c.Smallest()
-		sSmallest := s.Smallest()
-		if key.Less(cSmallest) {
-			cSmallest = key
-		}
-		t.root = &comparableInternalNode{
-			runts:    []Comparable{cSmallest, sSmallest},
-			children: []comparableNode{c, s},
-		}
-		if key.Less(sSmallest) {
-			ln = c.(*comparableLeafNode)
-		} else {
-			ln.Unlock() // release lock on previous leaf
-			ln = s.(*comparableLeafNode)
-			ln.Lock() // acquire lock on leaf's new sibling
-		}
-	}
+	ln := n.(*comparableLeafNode)
 
 	// When the new value will become the first element in a leaf, which is only
 	// possible for an empty tree, or when new key comes after final leaf runt,

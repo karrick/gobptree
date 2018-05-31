@@ -6,23 +6,23 @@ import (
 	"testing"
 )
 
-// String is a Comparable data structure used for testing the ComparableTree and its helper functions.
+// testString is a Comparable data structure used for testing the ComparableTree
+// and its helper functions.
+type testString string
 
-type String string
-
-func (a String) Less(b interface{}) bool {
-	bs, ok := b.(String)
+func (a testString) Less(b interface{}) bool {
+	bs, ok := b.(testString)
 	return ok && string(a) < string(bs)
 }
 
-func (a String) Greater(b interface{}) bool {
-	bs, ok := b.(String)
+func (a testString) Greater(b interface{}) bool {
+	bs, ok := b.(testString)
 	return ok && string(a) > string(bs)
 }
 
-func (_ String) ZeroValue() Comparable { return String("") }
+func (_ testString) ZeroValue() Comparable { return testString("") }
 
-//
+////////////////////////////////////////
 
 func ensureComparableLeaves(t *testing.T, a comparableNode, leafB *comparableLeafNode) {
 	t.Helper()
@@ -59,7 +59,7 @@ func ensureComparableLeaves(t *testing.T, a comparableNode, leafB *comparableLea
 func cls(items ...string) []Comparable {
 	bar := make([]Comparable, len(items))
 	for i := 0; i < len(items); i++ {
-		bar[i] = String(items[i])
+		bar[i] = testString(items[i])
 	}
 	return bar
 }
@@ -67,26 +67,26 @@ func cls(items ...string) []Comparable {
 func TestComparableBinarySearch(t *testing.T) {
 	t.Run("greater than or equal to", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
-			i := comparableSearchGreaterThanOrEqualTo(String("A"), nil)
+			i := comparableSearchGreaterThanOrEqualTo(testString("A"), nil)
 			if got, want := i, 0; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 		t.Run("single item list", func(t *testing.T) {
 			t.Run("key before", func(t *testing.T) {
-				i := comparableSearchGreaterThanOrEqualTo(String("A"), cls("B"))
+				i := comparableSearchGreaterThanOrEqualTo(testString("A"), cls("B"))
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match", func(t *testing.T) {
-				i := comparableSearchGreaterThanOrEqualTo(String("B"), cls("B"))
+				i := comparableSearchGreaterThanOrEqualTo(testString("B"), cls("B"))
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after", func(t *testing.T) {
-				i := comparableSearchGreaterThanOrEqualTo(String("C"), cls("B"))
+				i := comparableSearchGreaterThanOrEqualTo(testString("C"), cls("B"))
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
@@ -94,43 +94,43 @@ func TestComparableBinarySearch(t *testing.T) {
 		})
 		t.Run("multiple item list", func(t *testing.T) {
 			t.Run("key before first", func(t *testing.T) {
-				i := comparableSearchGreaterThanOrEqualTo(String("A"), cls("B", "D", "F"))
+				i := comparableSearchGreaterThanOrEqualTo(testString("A"), cls("B", "D", "F"))
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match first", func(t *testing.T) {
-				i := comparableSearchGreaterThanOrEqualTo(String("B"), cls("B", "D", "F"))
+				i := comparableSearchGreaterThanOrEqualTo(testString("B"), cls("B", "D", "F"))
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between first and second", func(t *testing.T) {
-				i := comparableSearchGreaterThanOrEqualTo(String("C"), cls("B", "D", "F"))
+				i := comparableSearchGreaterThanOrEqualTo(testString("C"), cls("B", "D", "F"))
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match second", func(t *testing.T) {
-				i := comparableSearchGreaterThanOrEqualTo(String("D"), cls("B", "D", "F"))
+				i := comparableSearchGreaterThanOrEqualTo(testString("D"), cls("B", "D", "F"))
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between second and third", func(t *testing.T) {
-				i := comparableSearchGreaterThanOrEqualTo(String("E"), cls("B", "D", "F"))
+				i := comparableSearchGreaterThanOrEqualTo(testString("E"), cls("B", "D", "F"))
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match third", func(t *testing.T) {
-				i := comparableSearchGreaterThanOrEqualTo(String("F"), cls("B", "D", "F"))
+				i := comparableSearchGreaterThanOrEqualTo(testString("F"), cls("B", "D", "F"))
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after third", func(t *testing.T) {
-				i := comparableSearchGreaterThanOrEqualTo(String("G"), cls("B", "D", "F"))
+				i := comparableSearchGreaterThanOrEqualTo(testString("G"), cls("B", "D", "F"))
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
@@ -139,26 +139,26 @@ func TestComparableBinarySearch(t *testing.T) {
 	})
 	t.Run("less than or equal to", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
-			i := comparableSearchLessThanOrEqualTo(String("A"), cls())
+			i := comparableSearchLessThanOrEqualTo(testString("A"), cls())
 			if got, want := i, 0; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 		t.Run("single item list", func(t *testing.T) {
 			t.Run("key before", func(t *testing.T) {
-				i := comparableSearchLessThanOrEqualTo(String("A"), cls("B"))
+				i := comparableSearchLessThanOrEqualTo(testString("A"), cls("B"))
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match", func(t *testing.T) {
-				i := comparableSearchLessThanOrEqualTo(String("B"), cls("B"))
+				i := comparableSearchLessThanOrEqualTo(testString("B"), cls("B"))
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after", func(t *testing.T) {
-				i := comparableSearchLessThanOrEqualTo(String("C"), cls("B"))
+				i := comparableSearchLessThanOrEqualTo(testString("C"), cls("B"))
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
@@ -166,43 +166,43 @@ func TestComparableBinarySearch(t *testing.T) {
 		})
 		t.Run("multiple item list", func(t *testing.T) {
 			t.Run("key before first", func(t *testing.T) {
-				i := comparableSearchLessThanOrEqualTo(String("A"), cls("B", "D", "F"))
+				i := comparableSearchLessThanOrEqualTo(testString("A"), cls("B", "D", "F"))
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match first", func(t *testing.T) {
-				i := comparableSearchLessThanOrEqualTo(String("B"), cls("B", "D", "F"))
+				i := comparableSearchLessThanOrEqualTo(testString("B"), cls("B", "D", "F"))
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between first and second", func(t *testing.T) {
-				i := comparableSearchLessThanOrEqualTo(String("C"), cls("B", "D", "F"))
+				i := comparableSearchLessThanOrEqualTo(testString("C"), cls("B", "D", "F"))
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match second", func(t *testing.T) {
-				i := comparableSearchLessThanOrEqualTo(String("D"), cls("B", "D", "F"))
+				i := comparableSearchLessThanOrEqualTo(testString("D"), cls("B", "D", "F"))
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between second and third", func(t *testing.T) {
-				i := comparableSearchLessThanOrEqualTo(String("E"), cls("B", "D", "F"))
+				i := comparableSearchLessThanOrEqualTo(testString("E"), cls("B", "D", "F"))
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match third", func(t *testing.T) {
-				i := comparableSearchLessThanOrEqualTo(String("F"), cls("B", "D", "F"))
+				i := comparableSearchLessThanOrEqualTo(testString("F"), cls("B", "D", "F"))
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after third", func(t *testing.T) {
-				i := comparableSearchLessThanOrEqualTo(String("G"), cls("B", "D", "F"))
+				i := comparableSearchLessThanOrEqualTo(testString("G"), cls("B", "D", "F"))
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
@@ -339,9 +339,9 @@ func TestInternalComparableNodeInsertSmallerKey(t *testing.T) {
 
 	d := &ComparableTree{root: ni, order: 4}
 
-	d.Insert(String("a"), 1)
+	d.Insert(testString("a"), 1)
 
-	if got, want := string(ni.runts[0].(String)), "a"; got != want {
+	if got, want := string(ni.runts[0].(testString)), "a"; got != want {
 		t.Fatalf("GOT: %v; WANT: %v", got, want)
 	}
 }
@@ -409,7 +409,7 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(String("30"), "thirty")
+			d.Insert(testString("30"), "thirty")
 			ensureComparableLeaves(t, ln, &comparableLeafNode{
 				runts:  cls("30"),
 				values: []interface{}{"thirty"},
@@ -421,8 +421,8 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(String("30"), "thirty")
-			d.Insert(String("10"), "ten")
+			d.Insert(testString("30"), "thirty")
+			d.Insert(testString("10"), "ten")
 			ensureComparableLeaves(t, ln, &comparableLeafNode{
 				runts:  cls("10", "30"),
 				values: []interface{}{"ten", "thirty"},
@@ -434,9 +434,9 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(String("30"), "thirty")
-			d.Insert(String("10"), "ten")
-			d.Insert(String("30"), "THIRTY")
+			d.Insert(testString("30"), "thirty")
+			d.Insert(testString("10"), "ten")
+			d.Insert(testString("30"), "THIRTY")
 			ensureComparableLeaves(t, ln, &comparableLeafNode{
 				runts:  cls("10", "30"),
 				values: []interface{}{"ten", "THIRTY"},
@@ -448,10 +448,10 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(String("30"), "thirty")
-			d.Insert(String("10"), "ten")
-			d.Insert(String("30"), "THIRTY")
-			d.Insert(String("20"), "twenty")
+			d.Insert(testString("30"), "thirty")
+			d.Insert(testString("10"), "ten")
+			d.Insert(testString("30"), "THIRTY")
+			d.Insert(testString("20"), "twenty")
 			ensureComparableLeaves(t, ln, &comparableLeafNode{
 				runts:  cls("10", "20", "30"),
 				values: []interface{}{"ten", "twenty", "THIRTY"},
@@ -463,11 +463,11 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(String("30"), "thirty")
-			d.Insert(String("10"), "ten")
-			d.Insert(String("30"), "THIRTY")
-			d.Insert(String("20"), "twenty")
-			d.Insert(String("40"), "forty")
+			d.Insert(testString("30"), "thirty")
+			d.Insert(testString("10"), "ten")
+			d.Insert(testString("30"), "THIRTY")
+			d.Insert(testString("20"), "twenty")
+			d.Insert(testString("40"), "forty")
 			ensureComparableLeaves(t, ln, &comparableLeafNode{
 				runts:  cls("10", "20", "30", "40"),
 				values: []interface{}{"ten", "twenty", "THIRTY", "forty"},
@@ -479,14 +479,14 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 		gimme := func() *ComparableTree {
 			d, _ := NewComparableTree(4)
 			for k, v := range map[string]string{"10": "ten", "20": "twenty", "30": "thirty", "40": "forty"} {
-				d.Insert(String(k), v)
+				d.Insert(testString(k), v)
 			}
 			// t.Logf("init root runts: %v\ninit root values: %v\n", d.root.(*leaf).runts, d.root.(*leaf).values)
 			return d
 		}
 		t.Run("when new key will be first node in left leaf", func(t *testing.T) {
 			d := gimme()
-			d.Insert(String("0"), "zero")
+			d.Insert(testString("0"), "zero")
 			root, ok := d.root.(*comparableInternalNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
@@ -499,7 +499,7 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			// ensure children nodes are as expected for this case
-			if got, want := string(root.runts[0].(String)), "0"; got != want {
+			if got, want := string(root.runts[0].(testString)), "0"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			ensureComparableLeaves(t, root.children[0], &comparableLeafNode{
@@ -508,7 +508,7 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 				next:   root.children[1].(*comparableLeafNode),
 			})
 
-			if got, want := string(root.runts[1].(String)), "30"; got != want {
+			if got, want := string(root.runts[1].(testString)), "30"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			ensureComparableLeaves(t, root.children[1], &comparableLeafNode{
@@ -518,7 +518,7 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 		})
 		t.Run("when new key is in middle", func(t *testing.T) {
 			d := gimme()
-			d.Insert(String("25"), "twenty-five")
+			d.Insert(testString("25"), "twenty-five")
 			root, ok := d.root.(*comparableInternalNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
@@ -531,7 +531,7 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			// ensure children nodes are as expected for this case
-			if got, want := string(root.runts[0].(String)), "10"; got != want {
+			if got, want := string(root.runts[0].(testString)), "10"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			ensureComparableLeaves(t, root.children[0], &comparableLeafNode{
@@ -540,7 +540,7 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 				next:   root.children[1].(*comparableLeafNode),
 			})
 
-			if got, want := string(root.runts[1].(String)), "30"; got != want {
+			if got, want := string(root.runts[1].(testString)), "30"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			ensureComparableLeaves(t, root.children[1], &comparableLeafNode{
@@ -550,7 +550,7 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 		})
 		t.Run("when new key will be final node in right leaf", func(t *testing.T) {
 			d := gimme()
-			d.Insert(String("50"), "fifty")
+			d.Insert(testString("50"), "fifty")
 			root, ok := d.root.(*comparableInternalNode)
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
@@ -563,7 +563,7 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			// ensure children nodes are as expected for this case
-			if got, want := string(root.runts[0].(String)), "10"; got != want {
+			if got, want := string(root.runts[0].(testString)), "10"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			ensureComparableLeaves(t, root.children[0], &comparableLeafNode{
@@ -572,7 +572,7 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 				next:   root.children[1].(*comparableLeafNode),
 			})
 
-			if got, want := string(root.runts[1].(String)), "30"; got != want {
+			if got, want := string(root.runts[1].(testString)), "30"; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 			ensureComparableLeaves(t, root.children[1], &comparableLeafNode{
@@ -592,11 +592,11 @@ func TestComparableTreeSearch(t *testing.T) {
 			d, _ := NewComparableTree(16)
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(String(strconv.Itoa(i)), i)
+					d.Insert(testString(strconv.Itoa(i)), i)
 				}
 			}
 
-			_, ok := d.Search(String("13"))
+			_, ok := d.Search(testString("13"))
 			if got, want := ok, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -605,11 +605,11 @@ func TestComparableTreeSearch(t *testing.T) {
 			d, _ := NewComparableTree(16)
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(String(strconv.Itoa(i)), i)
+					d.Insert(testString(strconv.Itoa(i)), i)
 				}
 			}
 
-			value, ok := d.Search(String("8"))
+			value, ok := d.Search(testString("8"))
 			if got, want := ok, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -623,11 +623,11 @@ func TestComparableTreeSearch(t *testing.T) {
 			d, _ := NewComparableTree(4)
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(String(strconv.Itoa(i)), i)
+					d.Insert(testString(strconv.Itoa(i)), i)
 				}
 			}
 
-			_, ok := d.Search(String("13"))
+			_, ok := d.Search(testString("13"))
 			if got, want := ok, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -636,11 +636,11 @@ func TestComparableTreeSearch(t *testing.T) {
 			d, _ := NewComparableTree(4)
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(String(strconv.Itoa(i)), i)
+					d.Insert(testString(strconv.Itoa(i)), i)
 				}
 			}
 
-			value, ok := d.Search(String("8"))
+			value, ok := d.Search(testString("8"))
 			if got, want := ok, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -656,7 +656,7 @@ func TestComparableTreeCursor(t *testing.T) {
 		var values []int
 
 		d, _ := NewComparableTree(4)
-		c := d.NewScanner(String(""))
+		c := d.NewScanner(testString(""))
 		for c.Scan() {
 			_, v := c.Pair()
 			values = append(values, v.(int))
@@ -672,10 +672,10 @@ func TestComparableTreeCursor(t *testing.T) {
 
 			d, _ := NewComparableTree(16)
 			for i := 0; i < 15; i++ {
-				d.Insert(String(strconv.Itoa(i)), i)
+				d.Insert(testString(strconv.Itoa(i)), i)
 			}
 
-			c := d.NewScanner(String(""))
+			c := d.NewScanner(testString(""))
 			for c.Scan() {
 				_, v := c.Pair()
 				values = append(values, v.(int))
@@ -695,11 +695,11 @@ func TestComparableTreeCursor(t *testing.T) {
 			d, _ := NewComparableTree(16)
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(String(strconv.Itoa(i)), i)
+					d.Insert(testString(strconv.Itoa(i)), i)
 				}
 			}
 
-			c := d.NewScanner(String("13"))
+			c := d.NewScanner(testString("13"))
 			for c.Scan() {
 				_, v := c.Pair()
 				values = append(values, v.(int))
@@ -718,10 +718,10 @@ func TestComparableTreeCursor(t *testing.T) {
 
 			d, _ := NewComparableTree(16)
 			for i := 0; i < 15; i++ {
-				d.Insert(String(strconv.Itoa(i)), i)
+				d.Insert(testString(strconv.Itoa(i)), i)
 			}
 
-			c := d.NewScanner(String("13"))
+			c := d.NewScanner(testString("13"))
 			for c.Scan() {
 				_, v := c.Pair()
 				values = append(values, v.(int))
@@ -741,10 +741,10 @@ func TestComparableTreeCursor(t *testing.T) {
 
 		d, _ := NewComparableTree(4)
 		for i := 0; i < 15; i++ {
-			d.Insert(String(strconv.Itoa(i)), i)
+			d.Insert(testString(strconv.Itoa(i)), i)
 		}
 
-		c := d.NewScanner(String(""))
+		c := d.NewScanner(testString(""))
 		for c.Scan() {
 			_, v := c.Pair()
 			values = append(values, v.(int))
@@ -762,7 +762,7 @@ func TestComparableTreeCursor(t *testing.T) {
 
 func TestComparableTreeUpdate(t *testing.T) {
 	d, _ := NewComparableTree(8)
-	d.Update(String("A"), func(value interface{}, ok bool) interface{} {
+	d.Update(testString("A"), func(value interface{}, ok bool) interface{} {
 		if got, want := ok, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
@@ -771,7 +771,7 @@ func TestComparableTreeUpdate(t *testing.T) {
 		}
 		return "first"
 	})
-	d.Update(String("A"), func(value interface{}, ok bool) interface{} {
+	d.Update(testString("A"), func(value interface{}, ok bool) interface{} {
 		if got, want := ok, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
@@ -780,15 +780,15 @@ func TestComparableTreeUpdate(t *testing.T) {
 		}
 		return "second"
 	})
-	value, ok := d.Search(String("A"))
+	value, ok := d.Search(testString("A"))
 	if got, want := ok, true; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
 	if got, want := value, "second"; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
-	d.Insert(String("C"), "third")
-	d.Update(String("B"), func(value interface{}, ok bool) interface{} {
+	d.Insert(testString("C"), "third")
+	d.Update(testString("B"), func(value interface{}, ok bool) interface{} {
 		if got, want := ok, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
@@ -797,7 +797,7 @@ func TestComparableTreeUpdate(t *testing.T) {
 		}
 		return "fourth"
 	})
-	value, ok = d.Search(String("B"))
+	value, ok = d.Search(testString("B"))
 	if got, want := ok, true; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
