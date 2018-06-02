@@ -1,4 +1,6 @@
-# gobptree : Provides several non-blocking B+Tree data structures
+# gobptree
+
+Provides several non-blocking B+Tree data structures
 
 ## Overview [![GoDoc](https://godoc.org/github.com/karrick/gobptree?status.svg)](https://godoc.org/github.com/karrick/gobptree)
 
