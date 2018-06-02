@@ -5,41 +5,18 @@ import (
 	"sync"
 )
 
-// Comparable data structures can be used as the keys for a ComparableTree. The
-// below is a trivial example of a comparable data structure using strings. The
-// ZeroValue method ought to return the zero-value for a data-structure.
-//
-//     type String string
-//
-//     func (a String) Less(b interface{}) bool {
-//         bs, ok := b.(String)
-//         return ok && string(a) < string(bs)
-//     }
-//
-//     func (a String) Greater(b interface{}) bool {
-//         bs, ok := b.(String)
-//         return ok && string(a) > string(bs)
-//     }
-//
-//     func (_ String) ZeroValue() Comparable { return String("") }
-type Comparable interface {
-	Less(interface{}) bool
-	Greater(interface{}) bool
-	ZeroValue() Comparable
-}
-
-// comparableSearchGreaterThanOrEqualTo returns the index of the first value
+// int64SearchGreaterThanOrEqualTo returns the index of the first value
 // from values that is greater than or equal to key.
-func comparableSearchGreaterThanOrEqualTo(key Comparable, values []Comparable) int {
+func int64SearchGreaterThanOrEqualTo(key int64, values []int64) int {
 	// search for index of runt that is greater than or equal to key
 	var low int
 	var high = len(values) - 1
 	for low < high {
 		index := (low + high) >> 1
 		value := values[index]
-		if key.Less(value) {
+		if key < value {
 			high = index
-		} else if key.Greater(value) {
+		} else if key > value {
 			low = index + 1
 		} else {
 			return index
@@ -48,12 +25,12 @@ func comparableSearchGreaterThanOrEqualTo(key Comparable, values []Comparable) i
 	return low
 }
 
-// comparableSearchLessThanOrEqualTo returns the index of the first value from
+// int64SearchLessThanOrEqualTo returns the index of the first value from
 // values that is less than or equal to key.
-func comparableSearchLessThanOrEqualTo(key Comparable, values []Comparable) int {
-	index := comparableSearchGreaterThanOrEqualTo(key, values)
+func int64SearchLessThanOrEqualTo(key int64, values []int64) int {
+	index := int64SearchGreaterThanOrEqualTo(key, values)
 	// convert result to less than or equal to
-	if index == len(values) || key.Less(values[index]) {
+	if index == len(values) || key < values[index] {
 		if index > 0 {
 			return index - 1
 		}
@@ -61,31 +38,31 @@ func comparableSearchLessThanOrEqualTo(key Comparable, values []Comparable) int 
 	return index
 }
 
-// comparableNode represents either an internal or a leaf node for a
-// ComparableTree using Comparable keys.
-type comparableNode interface {
-	absorbRight(comparableNode)
-	adoptFromLeft(comparableNode)
-	adoptFromRight(comparableNode)
+// int64Node represents either an internal or a leaf node for a
+// Int64Tree using Int64 keys.
+type int64Node interface {
+	absorbRight(int64Node)
+	adoptFromLeft(int64Node)
+	adoptFromRight(int64Node)
 	count() int
-	deleteKey(int, Comparable) bool
+	deleteKey(int, int64) bool
 	isInternal() bool
 	lock()
-	maybeSplit(order int) (comparableNode, comparableNode)
-	smallest() Comparable
+	maybeSplit(order int) (int64Node, int64Node)
+	smallest() int64
 	unlock()
 }
 
-// comparableInternalNode represents an internal node for a ComparableTree with
-// Comparable keys.
-type comparableInternalNode struct {
-	runts    []Comparable
-	children []comparableNode
+// int64InternalNode represents an internal node for a Int64Tree with
+// Int64 keys.
+type int64InternalNode struct {
+	runts    []int64
+	children []int64Node
 	mutex    sync.Mutex
 }
 
-func (left *comparableInternalNode) absorbRight(sibling comparableNode) {
-	right := sibling.(*comparableInternalNode)
+func (left *int64InternalNode) absorbRight(sibling int64Node) {
+	right := sibling.(*int64InternalNode)
 	left.runts = append(left.runts, right.runts...)
 	left.children = append(left.children, right.children...)
 
@@ -94,10 +71,10 @@ func (left *comparableInternalNode) absorbRight(sibling comparableNode) {
 	right.children = nil
 }
 
-func (right *comparableInternalNode) adoptFromLeft(sibling comparableNode) {
-	left := sibling.(*comparableInternalNode)
+func (right *int64InternalNode) adoptFromLeft(sibling int64Node) {
+	left := sibling.(*int64InternalNode)
 
-	right.runts = append(right.runts, right.runts[0].ZeroValue())
+	right.runts = append(right.runts, 0)
 	right.children = append(right.children, nil)
 	copy(right.runts[1:], right.runts[0:])
 	copy(right.children[1:], right.children[0:])
@@ -110,8 +87,8 @@ func (right *comparableInternalNode) adoptFromLeft(sibling comparableNode) {
 	left.children = left.children[:index]
 }
 
-func (left *comparableInternalNode) adoptFromRight(sibling comparableNode) {
-	right := sibling.(*comparableInternalNode)
+func (left *int64InternalNode) adoptFromRight(sibling int64Node) {
+	right := sibling.(*int64InternalNode)
 
 	left.runts = append(left.runts, right.runts[0])
 	left.children = append(left.children, right.children[0])
@@ -124,10 +101,10 @@ func (left *comparableInternalNode) adoptFromRight(sibling comparableNode) {
 	right.children = right.children[:index]
 }
 
-func (i *comparableInternalNode) count() int { return len(i.runts) }
+func (i *int64InternalNode) count() int { return len(i.runts) }
 
-func (i *comparableInternalNode) deleteKey(minSize int, key Comparable) bool {
-	index := comparableSearchLessThanOrEqualTo(key, i.runts)
+func (i *int64InternalNode) deleteKey(minSize int, key int64) bool {
+	index := int64SearchLessThanOrEqualTo(key, i.runts)
 	child := i.children[index]
 	child.lock()
 	defer child.unlock()
@@ -139,7 +116,7 @@ func (i *comparableInternalNode) deleteKey(minSize int, key Comparable) bool {
 
 	// ??? issue with locking child
 
-	var leftSibling, rightSibling comparableNode
+	var leftSibling, rightSibling int64Node
 	var leftCount, rightCount int
 
 	if index < len(i.runts)-1 {
@@ -196,23 +173,23 @@ func (i *comparableInternalNode) deleteKey(minSize int, key Comparable) bool {
 	return len(i.runts) < minSize
 }
 
-func (i *comparableInternalNode) isInternal() bool { return true }
+func (i *int64InternalNode) isInternal() bool { return true }
 
-func (i *comparableInternalNode) lock() { i.mutex.Lock() }
+func (i *int64InternalNode) lock() { i.mutex.Lock() }
 
 // maybeSplit splits the node, giving half of its values to its new sibling,
 // when the node is too full to accept any more values.
 //
 // NOTE: This loop assumes the tree's order is a multiple of 2, which must be
 // guarded for at tree instantiation time.
-func (i *comparableInternalNode) maybeSplit(order int) (comparableNode, comparableNode) {
+func (i *int64InternalNode) maybeSplit(order int) (int64Node, int64Node) {
 	if len(i.runts) < order {
 		return i, nil
 	}
 	newNodeRunts := order >> 1
-	sibling := &comparableInternalNode{
-		runts:    make([]Comparable, newNodeRunts, order),
-		children: make([]comparableNode, newNodeRunts, order),
+	sibling := &int64InternalNode{
+		runts:    make([]int64, newNodeRunts, order),
+		children: make([]int64Node, newNodeRunts, order),
 	}
 	// Right half of this node moves to sibling.
 	for j := 0; j < newNodeRunts; j++ {
@@ -225,26 +202,26 @@ func (i *comparableInternalNode) maybeSplit(order int) (comparableNode, comparab
 	return i, sibling
 }
 
-func (i *comparableInternalNode) smallest() Comparable {
+func (i *int64InternalNode) smallest() int64 {
 	if len(i.runts) == 0 {
 		panic("internal node has no children")
 	}
 	return i.runts[0]
 }
 
-func (i *comparableInternalNode) unlock() { i.mutex.Unlock() }
+func (i *int64InternalNode) unlock() { i.mutex.Unlock() }
 
-// comparableLeafNode represents a leaf node for a ComparableTree using
-// Comparable keys.
-type comparableLeafNode struct {
-	runts  []Comparable
+// int64LeafNode represents a leaf node for a Int64Tree using
+// Int64 keys.
+type int64LeafNode struct {
+	runts  []int64
 	values []interface{}
-	next   *comparableLeafNode // points to next leaf to allow enumeration
+	next   *int64LeafNode // points to next leaf to allow enumeration
 	mutex  sync.Mutex
 }
 
-func (left *comparableLeafNode) absorbRight(sibling comparableNode) {
-	right := sibling.(*comparableLeafNode)
+func (left *int64LeafNode) absorbRight(sibling int64Node) {
+	right := sibling.(*int64LeafNode)
 	if left.next != right {
 		// Superfluous check
 		panic("cannot merge leaf with sibling other than next sibling")
@@ -260,10 +237,10 @@ func (left *comparableLeafNode) absorbRight(sibling comparableNode) {
 	right.next = nil
 }
 
-func (right *comparableLeafNode) adoptFromLeft(sibling comparableNode) {
-	left := sibling.(*comparableLeafNode)
+func (right *int64LeafNode) adoptFromLeft(sibling int64Node) {
+	left := sibling.(*int64LeafNode)
 
-	right.runts = append(right.runts, right.runts[0].ZeroValue())
+	right.runts = append(right.runts, 0)
 	right.values = append(right.values, nil)
 	copy(right.runts[1:], right.runts[0:])
 	copy(right.values[1:], right.values[0:])
@@ -276,8 +253,8 @@ func (right *comparableLeafNode) adoptFromLeft(sibling comparableNode) {
 	left.values = left.values[:index]
 }
 
-func (left *comparableLeafNode) adoptFromRight(sibling comparableNode) {
-	right := sibling.(*comparableLeafNode)
+func (left *int64LeafNode) adoptFromRight(sibling int64Node) {
+	right := sibling.(*int64LeafNode)
 	left.runts = append(left.runts, right.runts[0])
 	left.values = append(left.values, right.values[0])
 	copy(right.runts[0:], right.runts[1:])
@@ -287,11 +264,11 @@ func (left *comparableLeafNode) adoptFromRight(sibling comparableNode) {
 	right.values = right.values[:index]
 }
 
-func (l *comparableLeafNode) count() int { return len(l.runts) }
+func (l *int64LeafNode) count() int { return len(l.runts) }
 
-func (l *comparableLeafNode) deleteKey(minSize int, key Comparable) bool {
-	index := comparableSearchGreaterThanOrEqualTo(key, l.runts)
-	if key.Less(l.runts[index]) || key.Greater(l.runts[index]) {
+func (l *int64LeafNode) deleteKey(minSize int, key int64) bool {
+	index := int64SearchGreaterThanOrEqualTo(key, l.runts)
+	if key != l.runts[index] {
 		return false
 	}
 	copy(l.runts[index:], l.runts[index+1:])
@@ -301,22 +278,22 @@ func (l *comparableLeafNode) deleteKey(minSize int, key Comparable) bool {
 	return len(l.runts) < minSize
 }
 
-func (l *comparableLeafNode) isInternal() bool { return false }
+func (l *int64LeafNode) isInternal() bool { return false }
 
-func (l *comparableLeafNode) lock() { l.mutex.Lock() }
+func (l *int64LeafNode) lock() { l.mutex.Lock() }
 
 // maybeSplit splits the node, giving half of its values to its new sibling,
 // when the node is too full to accept any more values.
 //
 // NOTE: This loop assumes the tree's order is a multiple of 2, which must be
 // guarded for at tree instantiation time.
-func (l *comparableLeafNode) maybeSplit(order int) (comparableNode, comparableNode) {
+func (l *int64LeafNode) maybeSplit(order int) (int64Node, int64Node) {
 	if len(l.runts) < order {
 		return l, nil
 	}
 	newNodeRunts := order >> 1
-	sibling := &comparableLeafNode{
-		runts:  make([]Comparable, newNodeRunts, order),
+	sibling := &int64LeafNode{
+		runts:  make([]int64, newNodeRunts, order),
 		values: make([]interface{}, newNodeRunts, order),
 		next:   l.next,
 	}
@@ -332,30 +309,30 @@ func (l *comparableLeafNode) maybeSplit(order int) (comparableNode, comparableNo
 	return l, sibling
 }
 
-func (l *comparableLeafNode) smallest() Comparable {
+func (l *int64LeafNode) smallest() int64 {
 	if len(l.runts) == 0 {
 		panic("leaf node has no children")
 	}
 	return l.runts[0]
 }
 
-func (l *comparableLeafNode) unlock() { l.mutex.Unlock() }
+func (l *int64LeafNode) unlock() { l.mutex.Unlock() }
 
-// ComparableTree is a B+Tree of elements using Comparable keys.
-type ComparableTree struct {
-	root  comparableNode
+// Int64Tree is a B+Tree of elements using Int64 keys.
+type Int64Tree struct {
+	root  int64Node
 	order int
 }
 
-// NewComparableTree returns a newly initialized ComparableTree of the specified
+// NewInt64Tree returns a newly initialized Int64Tree of the specified
 // order.
-func NewComparableTree(order int) (*ComparableTree, error) {
+func NewInt64Tree(order int) (*Int64Tree, error) {
 	if order <= 0 || order%2 == 1 {
 		return nil, fmt.Errorf("cannot create tree when order is not a multiple of 2: %d", order)
 	}
-	return &ComparableTree{
-		root: &comparableLeafNode{
-			runts:  make([]Comparable, 0, order),
+	return &Int64Tree{
+		root: &int64LeafNode{
+			runts:  make([]int64, 0, order),
 			values: make([]interface{}, 0, order),
 		},
 		order: order,
@@ -363,7 +340,7 @@ func NewComparableTree(order int) (*ComparableTree, error) {
 }
 
 // Delete removes the key-value pair from the tree.
-func (t *ComparableTree) Delete(key Comparable) {
+func (t *Int64Tree) Delete(key int64) {
 	t.root.lock()
 	defer t.root.unlock()
 
@@ -373,7 +350,7 @@ func (t *ComparableTree) Delete(key Comparable) {
 	}
 	// Root might be an internal or a leaf node. If leaf node, the root is
 	// already as small as can be.
-	if root, ok := t.root.(*comparableInternalNode); ok {
+	if root, ok := t.root.(*int64InternalNode); ok {
 		// Root has outlived its usefulness when it has only a single child.
 		t.root = root.children[0]
 	}
@@ -381,7 +358,7 @@ func (t *ComparableTree) Delete(key Comparable) {
 
 // Insert inserts the key-value pair into the tree, replacing the existing value
 // with the new value if the key is already in the tree.
-func (t *ComparableTree) Insert(key Comparable, value interface{}) {
+func (t *Int64Tree) Insert(key int64, value interface{}) {
 	n := t.root
 	n.lock()
 
@@ -389,16 +366,16 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 	// internal or a leaf node, the root shall become an internal node.
 	if left, right := n.maybeSplit(t.order); right != nil {
 		leftSmallest := left.smallest()
-		if key.Less(leftSmallest) {
+		if key < leftSmallest {
 			leftSmallest = key
 		}
 		rightSmallest := right.smallest()
-		t.root = &comparableInternalNode{
-			runts:    []Comparable{leftSmallest, rightSmallest},
-			children: []comparableNode{left, right},
+		t.root = &int64InternalNode{
+			runts:    []int64{leftSmallest, rightSmallest},
+			children: []int64Node{left, right},
 		}
 		// Decide whether we need to descend left or right.
-		if !key.Less(rightSmallest) {
+		if key >= rightSmallest {
 			right.lock()
 			n.unlock() // unlock the left, since same node
 			n = right
@@ -406,14 +383,14 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 	}
 
 	for n.isInternal() {
-		parent := n.(*comparableInternalNode)
-		index := comparableSearchLessThanOrEqualTo(key, parent.runts)
+		parent := n.(*int64InternalNode)
+		index := int64SearchLessThanOrEqualTo(key, parent.runts)
 
 		child := parent.children[index]
 		child.lock()
 
 		if index == 0 {
-			if smallest := child.smallest(); key.Less(smallest) {
+			if smallest := child.smallest(); key < smallest {
 				// preemptively update smallest value
 				parent.runts[0] = key
 			}
@@ -422,7 +399,7 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 		// Split the internal node when required.
 		if _, right := child.maybeSplit(t.order); right != nil {
 			// Insert sibling to the right of current node.
-			parent.runts = append(parent.runts, key.ZeroValue())
+			parent.runts = append(parent.runts, 0)
 			parent.children = append(parent.children, nil)
 			copy(parent.runts[index+2:], parent.runts[index+1:])
 			copy(parent.children[index+2:], parent.children[index+1:])
@@ -430,7 +407,7 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 			rightSmallest := right.smallest()
 			parent.runts[index+1] = rightSmallest
 			// Decide whether we need to descend left or right.
-			if !key.Less(rightSmallest) {
+			if key >= rightSmallest {
 				right.lock()   // grab lock on its new sibling
 				child.unlock() // release lock on child
 				child = right  // descend to newly created sibling
@@ -442,21 +419,21 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 		n = child
 	}
 
-	ln := n.(*comparableLeafNode)
+	ln := n.(*int64LeafNode)
 
 	// When the new value will become the first element in a leaf, which is only
 	// possible for an empty tree, or when new key comes after final leaf runt,
 	// a simple append will suffice.
-	if len(ln.runts) == 0 || key.Greater(ln.runts[len(ln.runts)-1]) {
+	if len(ln.runts) == 0 || key > ln.runts[len(ln.runts)-1] {
 		ln.runts = append(ln.runts, key)
 		ln.values = append(ln.values, value)
 		ln.unlock()
 		return
 	}
 
-	index := comparableSearchGreaterThanOrEqualTo(key, ln.runts)
+	index := int64SearchGreaterThanOrEqualTo(key, ln.runts)
 
-	if !(key.Less(ln.runts[index]) || key.Greater(ln.runts[index])) {
+	if key == ln.runts[index] {
 		// When the key matches the runt, merely need to update the value.
 		ln.values[index] = value
 		ln.unlock()
@@ -466,7 +443,7 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 	// Make room for and insert the new key-value pair into leaf.
 
 	// Append zero values to make room in arrays
-	ln.runts = append(ln.runts, key.ZeroValue())
+	ln.runts = append(ln.runts, 0)
 	ln.values = append(ln.values, nil)
 	// Shift elements to the right to make room for new data
 	copy(ln.runts[index+1:], ln.runts[index:])
@@ -478,23 +455,23 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 }
 
 // Search returns the value associated with key from the tree.
-func (t *ComparableTree) Search(key Comparable) (interface{}, bool) {
+func (t *Int64Tree) Search(key int64) (interface{}, bool) {
 	var value interface{}
 	var ok bool
 	n := t.root
 	n.lock()
 	for n.isInternal() {
-		parent := n.(*comparableInternalNode)
-		child := parent.children[comparableSearchLessThanOrEqualTo(key, parent.runts)]
+		parent := n.(*int64InternalNode)
+		child := parent.children[int64SearchLessThanOrEqualTo(key, parent.runts)]
 		child.lock()
 		parent.unlock()
 		n = child
 	}
-	l := n.(*comparableLeafNode)
+	l := n.(*int64LeafNode)
 
 	if len(l.runts) > 0 {
-		i := comparableSearchGreaterThanOrEqualTo(key, l.runts)
-		if !(key.Less(l.runts[i]) || key.Greater(l.runts[i])) {
+		i := int64SearchGreaterThanOrEqualTo(key, l.runts)
+		if key == l.runts[i] {
 			value = l.values[i]
 			ok = true
 		}
@@ -510,7 +487,7 @@ func (t *ComparableTree) Search(key Comparable) (interface{}, bool) {
 // with nil and false to signify the key was not found. After this method
 // returns, the key will exist in the tree with the new value returned by the
 // callback function.
-func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool) interface{}) {
+func (t *Int64Tree) Update(key int64, callback func(interface{}, bool) interface{}) {
 	n := t.root
 	n.lock()
 
@@ -518,16 +495,16 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 	// internal or a leaf node, the root shall become an internal node.
 	if left, right := n.maybeSplit(t.order); right != nil {
 		leftSmallest := left.smallest()
-		if key.Less(leftSmallest) {
+		if key < leftSmallest {
 			leftSmallest = key
 		}
 		rightSmallest := right.smallest()
-		t.root = &comparableInternalNode{
-			runts:    []Comparable{leftSmallest, rightSmallest},
-			children: []comparableNode{left, right},
+		t.root = &int64InternalNode{
+			runts:    []int64{leftSmallest, rightSmallest},
+			children: []int64Node{left, right},
 		}
 		// Decide whether we need to descend left or right.
-		if !key.Less(rightSmallest) {
+		if key >= rightSmallest {
 			right.lock()
 			n.unlock() // unlock the left, since same node
 			n = right
@@ -535,14 +512,14 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 	}
 
 	for n.isInternal() {
-		parent := n.(*comparableInternalNode)
-		index := comparableSearchLessThanOrEqualTo(key, parent.runts)
+		parent := n.(*int64InternalNode)
+		index := int64SearchLessThanOrEqualTo(key, parent.runts)
 
 		child := parent.children[index]
 		child.lock()
 
 		if index == 0 {
-			if smallest := child.smallest(); key.Less(smallest) {
+			if smallest := child.smallest(); key < smallest {
 				// preemptively update smallest value
 				parent.runts[0] = key
 			}
@@ -551,7 +528,7 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 		// Split the internal node when required.
 		if _, right := child.maybeSplit(t.order); right != nil {
 			// Insert sibling to the right of current node.
-			parent.runts = append(parent.runts, key.ZeroValue())
+			parent.runts = append(parent.runts, 0)
 			parent.children = append(parent.children, nil)
 			copy(parent.runts[index+2:], parent.runts[index+1:])
 			copy(parent.children[index+2:], parent.children[index+1:])
@@ -559,7 +536,7 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 			rightSmallest := right.smallest()
 			parent.runts[index+1] = rightSmallest
 			// Decide whether we need to descend left or right.
-			if !key.Less(rightSmallest) {
+			if key >= rightSmallest {
 				right.lock()   // grab lock on its new sibling
 				child.unlock() // release lock on child
 				child = right  // descend to newly created sibling
@@ -571,12 +548,12 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 		n = child
 	}
 
-	ln := n.(*comparableLeafNode)
+	ln := n.(*int64LeafNode)
 
 	// When the new value will become the first element in a leaf, which is only
 	// possible for an empty tree, or when new key comes after final leaf runt,
 	// a simple append will suffice.
-	if len(ln.runts) == 0 || key.Greater(ln.runts[len(ln.runts)-1]) {
+	if len(ln.runts) == 0 || key > ln.runts[len(ln.runts)-1] {
 		value := callback(nil, false)
 		ln.runts = append(ln.runts, key)
 		ln.values = append(ln.values, value)
@@ -584,9 +561,9 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 		return
 	}
 
-	index := comparableSearchGreaterThanOrEqualTo(key, ln.runts)
+	index := int64SearchGreaterThanOrEqualTo(key, ln.runts)
 
-	if !(key.Less(ln.runts[index]) || key.Greater(ln.runts[index])) {
+	if key == ln.runts[index] {
 		// When the key matches the runt, merely need to update the value.
 		ln.values[index] = callback(ln.values[index], true)
 		ln.unlock()
@@ -596,7 +573,7 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 	// Make room for and insert the new key-value pair into leaf.
 
 	// Append zero values to make room in arrays
-	ln.runts = append(ln.runts, key.ZeroValue())
+	ln.runts = append(ln.runts, 0)
 	ln.values = append(ln.values, nil)
 	// Shift elements to the right to make room for new data
 	copy(ln.runts[index+1:], ln.runts[index:])
@@ -615,38 +592,38 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 // nodes, which may block other operations on the tree that require modification
 // of the locked node. The leaf node is only unlocked either by closing the
 // Cursor, or after all key-value pairs have been visited using Scan.
-func (t *ComparableTree) NewScanner(key Comparable) *ComparableCursor {
+func (t *Int64Tree) NewScanner(key int64) *Int64Cursor {
 	n := t.root
 	n.lock()
 	for n.isInternal() {
-		parent := n.(*comparableInternalNode)
-		child := parent.children[comparableSearchLessThanOrEqualTo(key, parent.runts)]
+		parent := n.(*int64InternalNode)
+		child := parent.children[int64SearchLessThanOrEqualTo(key, parent.runts)]
 		child.lock()
 		parent.unlock()
 		n = child
 	}
-	ln := n.(*comparableLeafNode)
-	return newComparableCursor(ln, comparableSearchGreaterThanOrEqualTo(key, ln.runts))
+	ln := n.(*int64LeafNode)
+	return newInt64Cursor(ln, int64SearchGreaterThanOrEqualTo(key, ln.runts))
 }
 
-// ComparableCursor is used to enumerate key-value pairs from the tree in
+// Int64Cursor is used to enumerate key-value pairs from the tree in
 // ascending order.
-type ComparableCursor struct {
-	l *comparableLeafNode
+type Int64Cursor struct {
+	l *int64LeafNode
 	i int
 }
 
-func newComparableCursor(l *comparableLeafNode, i int) *ComparableCursor {
+func newInt64Cursor(l *int64LeafNode, i int) *Int64Cursor {
 	// Initialize cursor with index one smaller than requested, so initial scan
 	// lines up the cursor to reference the desired key-value pair.
-	return &ComparableCursor{l: l, i: i - 1}
+	return &Int64Cursor{l: l, i: i - 1}
 }
 
 // Close releases the lock on the leaf node under the cursor. This method is
 // provided to signal no further intention of scanning the remainder key-value
 // pairs in the tree. It is not necessary to call Close if Scan is called
 // repeatedly until Scan returns false.
-func (c *ComparableCursor) Close() error {
+func (c *Int64Cursor) Close() error {
 	if c.l != nil {
 		c.l.unlock()
 		c.l = nil
@@ -655,7 +632,7 @@ func (c *ComparableCursor) Close() error {
 }
 
 // Pair returns the key-value pair referenced by the cursor.
-func (c *ComparableCursor) Pair() (Comparable, interface{}) {
+func (c *Int64Cursor) Pair() (int64, interface{}) {
 	return c.l.runts[c.i], c.l.values[c.i]
 }
 
@@ -664,7 +641,7 @@ func (c *ComparableCursor) Pair() (Comparable, interface{}) {
 // pair to be observed with the Pair method. If the final key-value pair has
 // already been observed, this unlocks the final leaf in the tree and returns
 // false.
-func (c *ComparableCursor) Scan() bool {
+func (c *Int64Cursor) Scan() bool {
 	if c.i++; c.i == len(c.l.runts) {
 		if c.l.next == nil {
 			c.l.unlock()

@@ -247,7 +247,7 @@ func TestComparableInternalNodeMaybeSplit(t *testing.T) {
 	}
 
 	t.Run("does nothing when not full", func(t *testing.T) {
-		_, right := ni.MaybeSplit(6)
+		_, right := ni.maybeSplit(6)
 		if right != nil {
 			t.Errorf("GOT: %v; WANT: %v", right, nil)
 		}
@@ -263,7 +263,7 @@ func TestComparableInternalNodeMaybeSplit(t *testing.T) {
 			children: []comparableNode{leafC, leafD},
 		}
 
-		leftNode, rightNode := ni.MaybeSplit(4)
+		leftNode, rightNode := ni.maybeSplit(4)
 
 		// left side
 		if leftNode == nil {
@@ -362,7 +362,7 @@ func TestComparableLeafNodeMaybeSplit(t *testing.T) {
 
 	t.Run("when not full does nothing", func(t *testing.T) {
 		_, leafB := gimme()
-		_, right := leafB.MaybeSplit(6)
+		_, right := leafB.maybeSplit(6)
 		if right != nil {
 			t.Errorf("GOT: %v; WANT: %v", right, nil)
 		}
@@ -370,7 +370,7 @@ func TestComparableLeafNodeMaybeSplit(t *testing.T) {
 
 	t.Run("splits non-right edge when full", func(t *testing.T) {
 		leafA, leafB := gimme()
-		leftNode, rightNode := leafA.MaybeSplit(4)
+		leftNode, rightNode := leafA.maybeSplit(4)
 		ensureComparableLeaves(t, leftNode, &comparableLeafNode{
 			runts:  cls("a", "aa"),
 			values: []interface{}{1, 2},
@@ -384,7 +384,7 @@ func TestComparableLeafNodeMaybeSplit(t *testing.T) {
 	})
 	t.Run("splits right edge when full", func(t *testing.T) {
 		leafA, leafB := gimme()
-		leftNode, rightNode := leafB.MaybeSplit(4)
+		leftNode, rightNode := leafB.maybeSplit(4)
 		if got, want := leafA.next, leftNode; got != want {
 			t.Fatalf("GOT: %v; WANT: %v", got, want)
 		}
@@ -585,7 +585,12 @@ func TestInsertIntoSingleLeafComparableTree(t *testing.T) {
 
 func TestComparableTreeSearch(t *testing.T) {
 	t.Run("empty tree", func(t *testing.T) {
-		t.Skip("TODO")
+		d, _ := NewComparableTree(16)
+
+		_, ok := d.Search(testString("13"))
+		if got, want := ok, false; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
 	})
 	t.Run("single-leaf tree", func(t *testing.T) {
 		t.Run("missing value", func(t *testing.T) {
