@@ -114,8 +114,6 @@ func (i *stringInternalNode) deleteKey(minSize int, key string) bool {
 	}
 	// POST: child is too small
 
-	// ??? issue with locking child
-
 	var leftSibling, rightSibling stringNode
 	var leftCount, rightCount int
 

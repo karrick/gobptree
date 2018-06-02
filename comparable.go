@@ -137,8 +137,6 @@ func (i *comparableInternalNode) deleteKey(minSize int, key Comparable) bool {
 	}
 	// POST: child is too small
 
-	// ??? issue with locking child
-
 	var leftSibling, rightSibling comparableNode
 	var leftCount, rightCount int
 

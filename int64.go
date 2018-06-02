@@ -114,8 +114,6 @@ func (i *int64InternalNode) deleteKey(minSize int, key int64) bool {
 	}
 	// POST: child is too small
 
-	// ??? issue with locking child
-
 	var leftSibling, rightSibling int64Node
 	var leftCount, rightCount int
 
