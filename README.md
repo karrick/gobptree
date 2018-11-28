@@ -8,23 +8,24 @@ Search functions are non-blocking.
 
   * Int32Tree
   * Int64Tree
+  * Uint32Tree
+  * Uint64Tree
   * StringTree
   * ComparableTree
 
-Int32Tree is optimized to use builtin int32 type values for the datum
-keys. Int64Tree is optimized to use builtin int64 type values for the
-datum keys. StringTree is optimized to use builtin string type values
-for the datum keys. ComparableTree is designed to use any data
-structure type as a datum key that implements the Comparable
-interface. Namely, any data structure that has `Less(interface{})
-bool`, `Greater(interface{}) bool`, and `ZeroValue() Comparable`
-methods. Examples of this flexible B+Tree implementation are provided
-in the `godoc` documentation as well as the test files for the
-ComparableTree type.
+ComparableTree is designed to use any data structure type as a datum
+key that implements the Comparable interface. Namely, any data
+structure that has `Less(interface{}) bool`, `Greater(interface{})
+bool`, and `ZeroValue() Comparable` methods. Examples of this flexible
+B+Tree implementation are provided in the `godoc` documentation as
+well as the test files for the ComparableTree type.
+
+Other tree types are provided as optimized versions of their
+respective data types.
 
 ---
 
-Each B+Tree data structure in this library provides the following
+Every B+Tree data structure in this library provides the following
 methods, each of which is described below.
 
   * Delete(key)
