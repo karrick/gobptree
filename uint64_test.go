@@ -1170,13 +1170,15 @@ func benchmarkUint64(b *testing.B, order, count int) {
 
 	b.Run("insert", func(b *testing.B) {
 		for _, v := range randomizedValues {
-			t.Insert(uint64(v), struct{}{})
+			t.Insert(uint64(v), uint64(v))
 		}
 	})
 
 	b.Run("search", func(b *testing.B) {
 		for _, v := range randomizedValues {
-			t.Search(uint64(v))
+			if _, ok := t.Search(uint64(v)); !ok {
+				b.Fatalf("GOT: %v; WANT: %v", ok, true)
+			}
 		}
 	})
 

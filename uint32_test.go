@@ -1147,19 +1147,33 @@ func TestUint32InternalNodeDeleteKey(t *testing.T) {
 }
 
 func TestUint32Delete(t *testing.T) {
-	d, _ := NewUint32Tree(4)
+	const order = 32
+	const count = 1 << 20
 
-	for i := uint32(0); i < 16; i++ {
-		d.Insert(uint32(i), uint32(i))
+	d, err := NewUint32Tree(order)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for i := uint32(0); i < 16; i++ {
-		d.Delete(i)
+	randomizedValues := rand.Perm(count)
+
+	for _, v := range randomizedValues {
+		d.Insert(uint32(v), uint32(v))
+	}
+
+	for _, v := range randomizedValues {
+		if _, ok := d.Search(uint32(v)); !ok {
+			t.Fatalf("GOT: %v; WANT: %v", ok, true)
+		}
+	}
+
+	for _, v := range randomizedValues {
+		d.Delete(uint32(v))
 	}
 }
 
 func benchmarkUint32(b *testing.B, order, count int) {
-	t, err := NewUint32Tree(order)
+	d, err := NewUint32Tree(order)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -1170,20 +1184,22 @@ func benchmarkUint32(b *testing.B, order, count int) {
 
 	b.Run("insert", func(b *testing.B) {
 		for _, v := range randomizedValues {
-			t.Insert(uint32(v), struct{}{})
+			d.Insert(uint32(v), uint32(v))
 		}
 	})
 
 	b.Run("search", func(b *testing.B) {
 		for _, v := range randomizedValues {
-			t.Search(uint32(v))
+			if _, ok := d.Search(uint32(v)); !ok {
+				b.Fatalf("GOT: %v; WANT: %v", ok, true)
+			}
 		}
 	})
 
 	b.Run("delete", func(b *testing.B) {
-		b.Skip()
+		// b.Skip()
 		for _, v := range randomizedValues {
-			t.Delete(uint32(v))
+			d.Delete(uint32(v))
 		}
 	})
 }
