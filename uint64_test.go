@@ -2,6 +2,7 @@ package gobptree
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 )
 
@@ -1155,4 +1156,118 @@ func TestUint64Delete(t *testing.T) {
 	for i := uint64(0); i < 16; i++ {
 		d.Delete(i)
 	}
+}
+
+func benchmarkUint64OrderRandomInsert(b *testing.B, order, count int) {
+	t, err := NewUint64Tree(order)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	randomizedValues := rand.Perm(count)
+
+	b.ResetTimer()
+
+	for _, v := range randomizedValues {
+		t.Insert(uint64(v), struct{}{})
+	}
+}
+
+func benchmarkUint64OrderRandomDelete(b *testing.B, order, count int) {
+	b.Skip()
+
+	t, err := NewUint64Tree(order)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for i := 0; i < count; i++ {
+		t.Insert(uint64(i), struct{}{})
+	}
+
+	randomizedValues := rand.Perm(count)
+
+	b.ResetTimer()
+
+	for _, v := range randomizedValues {
+		t.Delete(uint64(v))
+	}
+}
+
+func BenchmarkUint64Order8(b *testing.B) {
+	const order = 8
+	const count = 1 << 20
+
+	b.Run("insert", func(b *testing.B) {
+		benchmarkUint64OrderRandomInsert(b, order, count)
+	})
+
+	b.Run("delete", func(b *testing.B) {
+		benchmarkUint64OrderRandomDelete(b, count, count)
+	})
+}
+
+func BenchmarkUint64Order16(b *testing.B) {
+	const order = 16
+	const count = 1 << 20
+
+	b.Run("insert", func(b *testing.B) {
+		benchmarkUint64OrderRandomInsert(b, order, count)
+	})
+
+	b.Run("delete", func(b *testing.B) {
+		benchmarkUint64OrderRandomDelete(b, count, count)
+	})
+}
+
+func BenchmarkUint64Order32(b *testing.B) {
+	const order = 32
+	const count = 1 << 20
+
+	b.Run("insert", func(b *testing.B) {
+		benchmarkUint64OrderRandomInsert(b, order, count)
+	})
+
+	b.Run("delete", func(b *testing.B) {
+		benchmarkUint64OrderRandomDelete(b, count, count)
+	})
+}
+
+func BenchmarkUint64Order64(b *testing.B) {
+	const order = 64
+	const count = 1 << 20
+
+	b.Run("insert", func(b *testing.B) {
+		benchmarkUint64OrderRandomInsert(b, order, count)
+	})
+
+	b.Run("delete", func(b *testing.B) {
+		benchmarkUint64OrderRandomDelete(b, count, count)
+	})
+}
+
+func BenchmarkUint64Order128(b *testing.B) {
+	const order = 128
+	const count = 1 << 20
+
+	b.Run("insert", func(b *testing.B) {
+		benchmarkUint64OrderRandomInsert(b, order, count)
+	})
+
+	b.Run("delete", func(b *testing.B) {
+		benchmarkUint64OrderRandomDelete(b, count, count)
+	})
+}
+
+func BenchmarkUint64Order256(b *testing.B) {
+	const order = 256
+	const count = 1 << 20
+
+	b.Run("insert", func(b *testing.B) {
+		benchmarkUint64OrderRandomInsert(b, order, count)
+	})
+
+	b.Run("delete", func(b *testing.B) {
+		benchmarkUint64OrderRandomDelete(b, count, count)
+	})
 }
