@@ -584,7 +584,8 @@ func (t *Int32Tree) Update(key int32, callback func(interface{}, bool) interface
 
 // NewScanner returns a cursor that iteratively returns key-value pairs from the
 // tree in ascending order starting at key, or if key is not found the next key,
-// and ending after all successive pairs have been returned.
+// and ending after all successive pairs have been returned. To enumerate all
+// values in a Int32Tree, invoke with key set to math.MinInt32.
 //
 // NOTE: This function exists still holding the lock on one of the tree's leaf
 // nodes, which may block other operations on the tree that require modification

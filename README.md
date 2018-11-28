@@ -121,7 +121,7 @@ func main() {
     // Scan through the tree, collecting all keys starting with the specified
     // key, or the next key in the tree.
     var sortedValues []int64
-    c := t.NewScanner(-1)
+    c := t.NewScanner(0)
     for c.Scan() {
         // Get the key-value pair for this datum, but only collect the key.
         k, _ := c.Pair()
