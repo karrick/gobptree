@@ -6,16 +6,18 @@ lock the tree from the root node down to the leaf node where a
 key-value pair is stored until the deletion completes. Insertions and
 Search functions are non-blocking.
 
+  * Int32Tree
   * Int64Tree
   * StringTree
   * ComparableTree
 
-Int64Tree is optimized to use builtin int64 type values for the datum
-keys. StringTree is optimized to use builtin string type values for
-the datum keys. ComparableTree is designed to use any data structure
-type as a datum key that implements the Comparable interface. Namely,
-any data structure that has `Less(interface{}) bool`,
-`Greater(interface{}) bool`, and `ZeroValue() Comparable`
+Int32Tree is optimized to use builtin int32 type values for the datum
+keys. Int64Tree is optimized to use builtin int64 type values for the
+datum keys. StringTree is optimized to use builtin string type values
+for the datum keys. ComparableTree is designed to use any data
+structure type as a datum key that implements the Comparable
+interface. Namely, any data structure that has `Less(interface{})
+bool`, `Greater(interface{}) bool`, and `ZeroValue() Comparable`
 methods. Examples of this flexible B+Tree implementation are provided
 in the `godoc` documentation as well as the test files for the
 ComparableTree type.
