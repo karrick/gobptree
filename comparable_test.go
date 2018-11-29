@@ -2,6 +2,7 @@ package gobptree
 
 import (
 	"fmt"
+	"math/rand"
 	"strconv"
 	"testing"
 )
@@ -808,5 +809,33 @@ func TestComparableTreeUpdate(t *testing.T) {
 	}
 	if got, want := value, "fourth"; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
+	}
+}
+
+func TestComparableDelete(t *testing.T) {
+	const order = 32
+	const count = 1 << 10
+
+	d, err := NewComparableTree(order)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	randomizedValues := rand.Perm(count)
+
+	for _, v := range randomizedValues {
+		d.Insert(testString(v), uint32(v))
+	}
+
+	for _, v := range randomizedValues {
+		if _, ok := d.Search(testString(v)); !ok {
+			t.Fatalf("GOT: %v; WANT: %v", ok, true)
+		}
+	}
+
+	for i := rand.Intn(10) + 5; i >= 0; i-- {
+		for _, v := range randomizedValues {
+			d.Delete(testString(v))
+		}
 	}
 }

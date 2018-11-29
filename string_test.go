@@ -2,6 +2,7 @@ package gobptree
 
 import (
 	"fmt"
+	"math/rand"
 	"strconv"
 	"testing"
 )
@@ -1147,13 +1148,29 @@ func TestStringInternalNodeDeleteKey(t *testing.T) {
 }
 
 func TestStringDelete(t *testing.T) {
-	d, _ := NewStringTree(4)
+	const order = 32
+	const count = 1 << 10
 
-	for i := 0; i < 16; i++ {
-		d.Insert(strconv.Itoa(i), strconv.Itoa(i))
+	d, err := NewStringTree(order)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for i := 0; i < 16; i++ {
-		d.Delete(strconv.Itoa(i))
+	randomizedValues := rand.Perm(count)
+
+	for _, v := range randomizedValues {
+		d.Insert(strconv.Itoa(v), strconv.Itoa(v))
+	}
+
+	for _, v := range randomizedValues {
+		if _, ok := d.Search(strconv.Itoa(v)); !ok {
+			t.Fatalf("GOT: %v; WANT: %v", ok, true)
+		}
+	}
+
+	for i := rand.Intn(10) + 5; i >= 0; i-- {
+		for _, v := range randomizedValues {
+			d.Delete(strconv.Itoa(v))
+		}
 	}
 }

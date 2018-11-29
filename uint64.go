@@ -266,7 +266,7 @@ func (l *uint64LeafNode) count() int { return len(l.runts) }
 
 func (l *uint64LeafNode) deleteKey(minSize int, key uint64) bool {
 	index := uint64SearchGreaterThanOrEqualTo(key, l.runts)
-	if key != l.runts[index] {
+	if index >= len(l.runts) || key != l.runts[index] {
 		return false
 	}
 	copy(l.runts[index:], l.runts[index+1:])

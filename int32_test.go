@@ -2,6 +2,7 @@ package gobptree
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 )
 
@@ -1146,13 +1147,29 @@ func TestInt32InternalNodeDeleteKey(t *testing.T) {
 }
 
 func TestInt32Delete(t *testing.T) {
-	d, _ := NewInt32Tree(4)
+	const order = 32
+	const count = 1 << 10
 
-	for i := int32(0); i < 16; i++ {
-		d.Insert(int32(i), int32(i))
+	d, err := NewInt32Tree(order)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for i := int32(0); i < 16; i++ {
-		d.Delete(i)
+	randomizedValues := rand.Perm(count)
+
+	for _, v := range randomizedValues {
+		d.Insert(int32(v), int32(v))
+	}
+
+	for _, v := range randomizedValues {
+		if _, ok := d.Search(int32(v)); !ok {
+			t.Fatalf("GOT: %v; WANT: %v", ok, true)
+		}
+	}
+
+	for i := rand.Intn(10) + 5; i >= 0; i-- {
+		for _, v := range randomizedValues {
+			d.Delete(int32(v))
+		}
 	}
 }

@@ -1148,7 +1148,7 @@ func TestUint32InternalNodeDeleteKey(t *testing.T) {
 
 func TestUint32Delete(t *testing.T) {
 	const order = 32
-	const count = 1 << 20
+	const count = 1 << 10
 
 	d, err := NewUint32Tree(order)
 	if err != nil {
@@ -1167,8 +1167,10 @@ func TestUint32Delete(t *testing.T) {
 		}
 	}
 
-	for _, v := range randomizedValues {
-		d.Delete(uint32(v))
+	for i := rand.Intn(10) + 5; i >= 0; i-- {
+		for _, v := range randomizedValues {
+			d.Delete(uint32(v))
+		}
 	}
 }
 
@@ -1179,8 +1181,6 @@ func benchmarkUint32(b *testing.B, order, count int) {
 	}
 
 	randomizedValues := rand.Perm(count)
-
-	b.ResetTimer()
 
 	b.Run("insert", func(b *testing.B) {
 		for _, v := range randomizedValues {
@@ -1197,7 +1197,6 @@ func benchmarkUint32(b *testing.B, order, count int) {
 	})
 
 	b.Run("delete", func(b *testing.B) {
-		// b.Skip()
 		for _, v := range randomizedValues {
 			d.Delete(uint32(v))
 		}

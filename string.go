@@ -266,7 +266,7 @@ func (l *stringLeafNode) count() int { return len(l.runts) }
 
 func (l *stringLeafNode) deleteKey(minSize int, key string) bool {
 	index := stringSearchGreaterThanOrEqualTo(key, l.runts)
-	if key != l.runts[index] {
+	if index >= len(l.runts) || key != l.runts[index] {
 		return false
 	}
 	copy(l.runts[index:], l.runts[index+1:])

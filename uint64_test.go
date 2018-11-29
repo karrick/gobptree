@@ -1147,14 +1147,30 @@ func TestUint64InternalNodeDeleteKey(t *testing.T) {
 }
 
 func TestUint64Delete(t *testing.T) {
-	d, _ := NewUint64Tree(4)
+	const order = 32
+	const count = 1 << 10
 
-	for i := uint64(0); i < 16; i++ {
-		d.Insert(uint64(i), uint64(i))
+	d, err := NewUint64Tree(order)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for i := uint64(0); i < 16; i++ {
-		d.Delete(i)
+	randomizedValues := rand.Perm(count)
+
+	for _, v := range randomizedValues {
+		d.Insert(uint64(v), uint64(v))
+	}
+
+	for _, v := range randomizedValues {
+		if _, ok := d.Search(uint64(v)); !ok {
+			t.Fatalf("GOT: %v; WANT: %v", ok, true)
+		}
+	}
+
+	for i := rand.Intn(10) + 5; i >= 0; i-- {
+		for _, v := range randomizedValues {
+			d.Delete(uint64(v))
+		}
 	}
 }
 
