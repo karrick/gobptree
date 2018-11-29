@@ -1173,28 +1173,49 @@ func TestUint32Delete(t *testing.T) {
 }
 
 func benchmarkUint32(b *testing.B, order int, values []int) {
-	d, err := NewUint32Tree(order)
-	if err != nil {
-		b.Fatal(err)
-	}
+	var d *Uint32Tree
+	var err error
 
 	b.Run("insert", func(b *testing.B) {
-		for _, v := range values {
-			d.Insert(uint32(v), uint32(v))
-		}
-	})
-
-	b.Run("search", func(b *testing.B) {
-		for _, v := range values {
-			if _, ok := d.Search(uint32(v)); !ok {
-				b.Fatalf("GOT: %v; WANT: %v", ok, true)
+		for i := 0; i < b.N; i++ {
+			d, err = NewUint32Tree(order)
+			if err != nil {
+				b.Fatal(err)
+			}
+			for _, v := range values {
+				d.Insert(uint32(v), uint32(v))
 			}
 		}
 	})
 
+	b.Run("search", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			for _, v := range values {
+				if _, ok := d.Search(uint32(v)); !ok {
+					b.Fatalf("GOT: %v; WANT: %v", ok, true)
+				}
+			}
+		}
+	})
+
+	b.Run("scan", func(b *testing.B) {
+		var ignored int
+		for i := 0; i < b.N; i++ {
+			var count int
+			scanner := d.NewScanner(0)
+			for scanner.Scan() {
+				count++
+			}
+			ignored = count
+		}
+		_ = ignored
+	})
+
 	b.Run("delete", func(b *testing.B) {
-		for _, v := range values {
-			d.Delete(uint32(v))
+		for i := 0; i < b.N; i++ {
+			for _, v := range values {
+				d.Delete(uint32(v))
+			}
 		}
 	})
 }
