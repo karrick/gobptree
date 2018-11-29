@@ -289,7 +289,7 @@ func (l *comparableLeafNode) count() int { return len(l.runts) }
 
 func (l *comparableLeafNode) deleteKey(minSize int, key Comparable) bool {
 	index := comparableSearchGreaterThanOrEqualTo(key, l.runts)
-	if index <= len(l.runts) || key.Less(l.runts[index]) || key.Greater(l.runts[index]) {
+	if index == len(l.runts) || key.Less(l.runts[index]) || key.Greater(l.runts[index]) {
 		return false
 	}
 	copy(l.runts[index:], l.runts[index+1:])

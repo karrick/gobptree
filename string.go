@@ -266,7 +266,7 @@ func (l *stringLeafNode) count() int { return len(l.runts) }
 
 func (l *stringLeafNode) deleteKey(minSize int, key string) bool {
 	index := stringSearchGreaterThanOrEqualTo(key, l.runts)
-	if index >= len(l.runts) || key != l.runts[index] {
+	if index == len(l.runts) || key != l.runts[index] {
 		return false
 	}
 	copy(l.runts[index:], l.runts[index+1:])
@@ -584,7 +584,8 @@ func (t *StringTree) Update(key string, callback func(interface{}, bool) interfa
 
 // NewScanner returns a cursor that iteratively returns key-value pairs from the
 // tree in ascending order starting at key, or if key is not found the next key,
-// and ending after all successive pairs have been returned.
+// and ending after all successive pairs have been returned. To enumerate all
+// values in a StringTree, invoke with key set to the empty string.
 //
 // NOTE: This function exists still holding the lock on one of the tree's leaf
 // nodes, which may block other operations on the tree that require modification

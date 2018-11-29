@@ -1168,9 +1168,11 @@ func TestStringDelete(t *testing.T) {
 		}
 	}
 
-	for i := rand.Intn(10) + 5; i >= 0; i-- {
-		for _, v := range randomizedValues {
-			d.Delete(strconv.Itoa(v))
-		}
+	for _, v := range randomizedValues {
+		d.Delete(strconv.Itoa(v))
 	}
+
+	t.Run("empty", func(t *testing.T) {
+		d.Delete(strconv.Itoa(13))
+	})
 }

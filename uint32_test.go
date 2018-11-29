@@ -1167,11 +1167,13 @@ func TestUint32Delete(t *testing.T) {
 		}
 	}
 
-	for i := rand.Intn(10) + 5; i >= 0; i-- {
-		for _, v := range randomizedValues {
-			d.Delete(uint32(v))
-		}
+	for _, v := range randomizedValues {
+		d.Delete(uint32(v))
 	}
+
+	t.Run("empty", func(t *testing.T) {
+		d.Delete(uint32(13))
+	})
 }
 
 func benchmarkUint32(b *testing.B, order, count int) {

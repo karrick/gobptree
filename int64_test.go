@@ -1167,9 +1167,11 @@ func TestInt64Delete(t *testing.T) {
 		}
 	}
 
-	for i := rand.Intn(10) + 5; i >= 0; i-- {
-		for _, v := range randomizedValues {
-			d.Delete(int64(v))
-		}
+	for _, v := range randomizedValues {
+		d.Delete(int64(v))
 	}
+
+	t.Run("empty", func(t *testing.T) {
+		d.Delete(int64(13))
+	})
 }
