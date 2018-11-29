@@ -2,7 +2,6 @@ package gobptree
 
 import (
 	"fmt"
-	"math/rand"
 	"testing"
 )
 
@@ -1148,14 +1147,11 @@ func TestUint32InternalNodeDeleteKey(t *testing.T) {
 
 func TestUint32Delete(t *testing.T) {
 	const order = 32
-	const count = 1 << 10
 
 	d, err := NewUint32Tree(order)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	randomizedValues := rand.Perm(count)
 
 	for _, v := range randomizedValues {
 		d.Insert(uint32(v), uint32(v))
@@ -1176,22 +1172,20 @@ func TestUint32Delete(t *testing.T) {
 	})
 }
 
-func benchmarkUint32(b *testing.B, order, count int) {
+func benchmarkUint32(b *testing.B, order int, values []int) {
 	d, err := NewUint32Tree(order)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	randomizedValues := rand.Perm(count)
-
 	b.Run("insert", func(b *testing.B) {
-		for _, v := range randomizedValues {
+		for _, v := range values {
 			d.Insert(uint32(v), uint32(v))
 		}
 	})
 
 	b.Run("search", func(b *testing.B) {
-		for _, v := range randomizedValues {
+		for _, v := range values {
 			if _, ok := d.Search(uint32(v)); !ok {
 				b.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -1199,7 +1193,7 @@ func benchmarkUint32(b *testing.B, order, count int) {
 	})
 
 	b.Run("delete", func(b *testing.B) {
-		for _, v := range randomizedValues {
+		for _, v := range values {
 			d.Delete(uint32(v))
 		}
 	})
@@ -1207,36 +1201,30 @@ func benchmarkUint32(b *testing.B, order, count int) {
 
 func BenchmarkUint32Order16(b *testing.B) {
 	const order = 16
-	const count = 1 << 20
-	benchmarkUint32(b, order, count)
+	benchmarkUint32(b, order, randomizedValues)
 }
 
 func BenchmarkUint32Order32(b *testing.B) {
 	const order = 32
-	const count = 1 << 20
-	benchmarkUint32(b, order, count)
+	benchmarkUint32(b, order, randomizedValues)
 }
 
 func BenchmarkUint32Order64(b *testing.B) {
 	const order = 64
-	const count = 1 << 20
-	benchmarkUint32(b, order, count)
+	benchmarkUint32(b, order, randomizedValues)
 }
 
 func BenchmarkUint32Order128(b *testing.B) {
 	const order = 128
-	const count = 1 << 20
-	benchmarkUint32(b, order, count)
+	benchmarkUint32(b, order, randomizedValues)
 }
 
 func BenchmarkUint32Order256(b *testing.B) {
 	const order = 256
-	const count = 1 << 20
-	benchmarkUint32(b, order, count)
+	benchmarkUint32(b, order, randomizedValues)
 }
 
 func BenchmarkUint32Order512(b *testing.B) {
 	const order = 512
-	const count = 1 << 20
-	benchmarkUint32(b, order, count)
+	benchmarkUint32(b, order, randomizedValues)
 }

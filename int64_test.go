@@ -2,7 +2,6 @@ package gobptree
 
 import (
 	"fmt"
-	"math/rand"
 	"testing"
 )
 
@@ -1148,14 +1147,11 @@ func TestInt64InternalNodeDeleteKey(t *testing.T) {
 
 func TestInt64Delete(t *testing.T) {
 	const order = 32
-	const count = 1 << 10
 
 	d, err := NewInt64Tree(order)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	randomizedValues := rand.Perm(count)
 
 	for _, v := range randomizedValues {
 		d.Insert(int64(v), int64(v))

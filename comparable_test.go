@@ -2,7 +2,6 @@ package gobptree
 
 import (
 	"fmt"
-	"math/rand"
 	"strconv"
 	"testing"
 )
@@ -814,14 +813,11 @@ func TestComparableTreeUpdate(t *testing.T) {
 
 func TestComparableDelete(t *testing.T) {
 	const order = 32
-	const count = 1 << 10
 
 	d, err := NewComparableTree(order)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	randomizedValues := rand.Perm(count)
 
 	for _, v := range randomizedValues {
 		d.Insert(testString(v), uint32(v))

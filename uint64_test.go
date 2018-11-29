@@ -2,7 +2,6 @@ package gobptree
 
 import (
 	"fmt"
-	"math/rand"
 	"testing"
 )
 
@@ -1148,14 +1147,11 @@ func TestUint64InternalNodeDeleteKey(t *testing.T) {
 
 func TestUint64Delete(t *testing.T) {
 	const order = 32
-	const count = 1 << 10
 
 	d, err := NewUint64Tree(order)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	randomizedValues := rand.Perm(count)
 
 	for _, v := range randomizedValues {
 		d.Insert(uint64(v), uint64(v))
@@ -1176,24 +1172,20 @@ func TestUint64Delete(t *testing.T) {
 	})
 }
 
-func benchmarkUint64(b *testing.B, order, count int) {
+func benchmarkUint64(b *testing.B, order int, values []int) {
 	t, err := NewUint64Tree(order)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	randomizedValues := rand.Perm(count)
-
-	b.ResetTimer()
-
 	b.Run("insert", func(b *testing.B) {
-		for _, v := range randomizedValues {
+		for _, v := range values {
 			t.Insert(uint64(v), uint64(v))
 		}
 	})
 
 	b.Run("search", func(b *testing.B) {
-		for _, v := range randomizedValues {
+		for _, v := range values {
 			if _, ok := t.Search(uint64(v)); !ok {
 				b.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -1201,7 +1193,7 @@ func benchmarkUint64(b *testing.B, order, count int) {
 	})
 
 	b.Run("delete", func(b *testing.B) {
-		for _, v := range randomizedValues {
+		for _, v := range values {
 			t.Delete(uint64(v))
 		}
 	})
@@ -1209,36 +1201,30 @@ func benchmarkUint64(b *testing.B, order, count int) {
 
 func BenchmarkUint64Order16(b *testing.B) {
 	const order = 16
-	const count = 1 << 20
-	benchmarkUint64(b, order, count)
+	benchmarkUint64(b, order, randomizedValues)
 }
 
 func BenchmarkUint64Order32(b *testing.B) {
 	const order = 32
-	const count = 1 << 20
-	benchmarkUint64(b, order, count)
+	benchmarkUint64(b, order, randomizedValues)
 }
 
 func BenchmarkUint64Order64(b *testing.B) {
 	const order = 64
-	const count = 1 << 20
-	benchmarkUint64(b, order, count)
+	benchmarkUint64(b, order, randomizedValues)
 }
 
 func BenchmarkUint64Order128(b *testing.B) {
 	const order = 128
-	const count = 1 << 20
-	benchmarkUint64(b, order, count)
+	benchmarkUint64(b, order, randomizedValues)
 }
 
 func BenchmarkUint64Order256(b *testing.B) {
 	const order = 256
-	const count = 1 << 20
-	benchmarkUint64(b, order, count)
+	benchmarkUint64(b, order, randomizedValues)
 }
 
 func BenchmarkUint64Order512(b *testing.B) {
 	const order = 512
-	const count = 1 << 20
-	benchmarkUint64(b, order, count)
+	benchmarkUint64(b, order, randomizedValues)
 }
