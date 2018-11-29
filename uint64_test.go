@@ -1199,7 +1199,6 @@ func benchmarkUint64(b *testing.B, order, count int) {
 	})
 
 	b.Run("delete", func(b *testing.B) {
-		b.Skip()
 		for _, v := range randomizedValues {
 			t.Delete(uint64(v))
 		}
