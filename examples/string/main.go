@@ -6,10 +6,14 @@ import (
 	"os"
 
 	"github.com/karrick/gobptree"
+	"github.com/karrick/golf"
 )
 
 func main() {
-	t, err := gobptree.NewStringTree(64)
+	optOrder := golf.Int64("order", 64, "order of tree")
+	golf.Parse()
+
+	t, err := gobptree.NewStringTree(int(*optOrder))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
 		os.Exit(1)
