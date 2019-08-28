@@ -6,6 +6,55 @@ import (
 )
 
 func TestUint64BinarySearch(t *testing.T) {
+	t.Run("skip values", func(t *testing.T) {
+		values := []uint64{1, 3, 5, 7, 9, 11, 13}
+
+		if got, want := uint64SearchGreaterThanOrEqualTo(0, values), 0; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(1, values), 0; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(2, values), 1; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(3, values), 1; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(4, values), 2; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(5, values), 2; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(6, values), 3; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(7, values), 3; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(8, values), 4; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(9, values), 4; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(10, values), 5; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(11, values), 5; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(12, values), 6; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(13, values), 6; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := uint64SearchGreaterThanOrEqualTo(14, values), 6; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+	})
 	t.Run("greater than or equal to", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
 			i := uint64SearchGreaterThanOrEqualTo(1, nil)

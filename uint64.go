@@ -5,24 +5,35 @@ import (
 	"sync"
 )
 
-// uint64SearchGreaterThanOrEqualTo returns the index of the first value
-// from values that is greater than or equal to key.
+// uint64SearchGreaterThanOrEqualTo returns the index of the first value from
+// values that is greater than or equal to key.  search for index of runt that
+// is greater than or equal to key.
 func uint64SearchGreaterThanOrEqualTo(key uint64, values []uint64) int {
 	// search for index of runt that is greater than or equal to key
-	var low int
-	var high = len(values) - 1
-	for low < high {
-		index := (low + high) >> 1
-		value := values[index]
-		if key < value {
-			high = index
-		} else if key > value {
-			low = index + 1
-		} else {
-			return index
-		}
+	var lo int
+
+	hi := len(values)
+	if hi <= 1 {
+		return 0
 	}
-	return low
+	hi--
+
+loop:
+	m := (lo + hi) >> 1
+	v := values[m]
+	if key < v {
+		if hi = m; lo < hi {
+			goto loop
+		}
+		return lo
+	}
+	if key > v {
+		if lo = m + 1; lo < hi {
+			goto loop
+		}
+		return lo
+	}
+	return m
 }
 
 // uint64SearchLessThanOrEqualTo returns the index of the first value from

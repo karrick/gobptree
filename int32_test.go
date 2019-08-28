@@ -6,6 +6,55 @@ import (
 )
 
 func TestInt32BinarySearch(t *testing.T) {
+	t.Run("skip values", func(t *testing.T) {
+		values := []int32{1, 3, 5, 7, 9, 11, 13}
+
+		if got, want := int32SearchGreaterThanOrEqualTo(0, values), 0; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(1, values), 0; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(2, values), 1; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(3, values), 1; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(4, values), 2; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(5, values), 2; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(6, values), 3; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(7, values), 3; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(8, values), 4; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(9, values), 4; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(10, values), 5; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(11, values), 5; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(12, values), 6; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(13, values), 6; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := int32SearchGreaterThanOrEqualTo(14, values), 6; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+	})
 	t.Run("greater than or equal to", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
 			i := int32SearchGreaterThanOrEqualTo(1, nil)

@@ -65,6 +65,88 @@ func cls(items ...string) []Comparable {
 }
 
 func TestComparableBinarySearch(t *testing.T) {
+	t.Run("skip values", func(t *testing.T) {
+		values := cls("b", "d", "f", "h", "j", "l", "n", "p", "r", "t", "v", "x")
+
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("a"), values), 0; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("b"), values), 0; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("c"), values), 1; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("d"), values), 1; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("e"), values), 2; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("f"), values), 2; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("g"), values), 3; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("h"), values), 3; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("i"), values), 4; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("j"), values), 4; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("k"), values), 5; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("l"), values), 5; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("m"), values), 6; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("n"), values), 6; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("o"), values), 7; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("p"), values), 7; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("q"), values), 8; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("r"), values), 8; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("s"), values), 9; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("t"), values), 9; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("u"), values), 10; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("v"), values), 10; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("w"), values), 11; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("x"), values), 11; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("y"), values), 11; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := comparableSearchGreaterThanOrEqualTo(testString("z"), values), 11; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+	})
 	t.Run("greater than or equal to", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
 			i := comparableSearchGreaterThanOrEqualTo(testString("A"), nil)

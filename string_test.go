@@ -7,6 +7,88 @@ import (
 )
 
 func TestStringBinarySearch(t *testing.T) {
+	t.Run("skip values", func(t *testing.T) {
+		values := []string{"b", "d", "f", "h", "j", "l", "n", "p", "r", "t", "v", "x"}
+
+		if got, want := stringSearchGreaterThanOrEqualTo("a", values), 0; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("b", values), 0; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("c", values), 1; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("d", values), 1; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("e", values), 2; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("f", values), 2; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("g", values), 3; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("h", values), 3; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("i", values), 4; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("j", values), 4; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("k", values), 5; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("l", values), 5; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("m", values), 6; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("n", values), 6; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("o", values), 7; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("p", values), 7; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("q", values), 8; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("r", values), 8; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("s", values), 9; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("t", values), 9; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("u", values), 10; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("v", values), 10; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("w", values), 11; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("x", values), 11; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("y", values), 11; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+		if got, want := stringSearchGreaterThanOrEqualTo("z", values), 11; got != want {
+			t.Errorf("GOT: %v; WANT: %v", got, want)
+		}
+	})
 	t.Run("greater than or equal to", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
 			i := stringSearchGreaterThanOrEqualTo("a", nil)

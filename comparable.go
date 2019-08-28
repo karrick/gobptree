@@ -29,23 +29,33 @@ type Comparable interface {
 }
 
 // comparableSearchGreaterThanOrEqualTo returns the index of the first value
-// from values that is greater than or equal to key.
+// from values that is greater than or equal to key.  search for index of runt
+// that is greater than or equal to key.
 func comparableSearchGreaterThanOrEqualTo(key Comparable, values []Comparable) int {
-	// search for index of runt that is greater than or equal to key
-	var low int
-	var high = len(values) - 1
-	for low < high {
-		index := (low + high) >> 1
-		value := values[index]
-		if key.Less(value) {
-			high = index
-		} else if key.Greater(value) {
-			low = index + 1
-		} else {
-			return index
-		}
+	var lo int
+
+	hi := len(values)
+	if hi <= 1 {
+		return 0
 	}
-	return low
+	hi--
+
+loop:
+	m := (lo + hi) >> 1
+	v := values[m]
+	if key.Less(v) {
+		if hi = m; lo < hi {
+			goto loop
+		}
+		return lo
+	}
+	if key.Greater(v) {
+		if lo = m + 1; lo < hi {
+			goto loop
+		}
+		return lo
+	}
+	return m
 }
 
 // comparableSearchLessThanOrEqualTo returns the index of the first value from
