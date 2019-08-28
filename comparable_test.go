@@ -15,11 +15,6 @@ func (a testString) Less(b interface{}) bool {
 	return ok && string(a) < string(bs)
 }
 
-func (a testString) Greater(b interface{}) bool {
-	bs, ok := b.(testString)
-	return ok && string(a) > string(bs)
-}
-
 func (_ testString) ZeroValue() Comparable { return testString("") }
 
 ////////////////////////////////////////

@@ -16,15 +16,9 @@ import (
 //         return ok && string(a) < string(bs)
 //     }
 //
-//     func (a String) Greater(b interface{}) bool {
-//         bs, ok := b.(String)
-//         return ok && string(a) > string(bs)
-//     }
-//
 //     func (_ String) ZeroValue() Comparable { return String("") }
 type Comparable interface {
 	Less(interface{}) bool
-	Greater(interface{}) bool
 	ZeroValue() Comparable
 }
 
@@ -49,7 +43,7 @@ loop:
 		}
 		return lo
 	}
-	if key.Greater(v) {
+	if v.Less(key) {
 		if lo = m + 1; lo < hi {
 			goto loop
 		}
@@ -299,7 +293,7 @@ func (l *comparableLeafNode) count() int { return len(l.runts) }
 
 func (l *comparableLeafNode) deleteKey(minSize int, key Comparable) bool {
 	index := comparableSearchGreaterThanOrEqualTo(key, l.runts)
-	if index == len(l.runts) || key.Less(l.runts[index]) || key.Greater(l.runts[index]) {
+	if index == len(l.runts) || key.Less(l.runts[index]) || l.runts[index].Less(key) {
 		return false
 	}
 	copy(l.runts[index:], l.runts[index+1:])
@@ -455,7 +449,7 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 	// When the new value will become the first element in a leaf, which is only
 	// possible for an empty tree, or when new key comes after final leaf runt,
 	// a simple append will suffice.
-	if len(ln.runts) == 0 || key.Greater(ln.runts[len(ln.runts)-1]) {
+	if len(ln.runts) == 0 || ln.runts[len(ln.runts)-1].Less(key) {
 		ln.runts = append(ln.runts, key)
 		ln.values = append(ln.values, value)
 		ln.unlock()
@@ -464,7 +458,7 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 
 	index := comparableSearchGreaterThanOrEqualTo(key, ln.runts)
 
-	if !(key.Less(ln.runts[index]) || key.Greater(ln.runts[index])) {
+	if !(key.Less(ln.runts[index]) || ln.runts[index].Less(key)) {
 		// When the key matches the runt, merely need to update the value.
 		ln.values[index] = value
 		ln.unlock()
@@ -502,7 +496,7 @@ func (t *ComparableTree) Search(key Comparable) (interface{}, bool) {
 
 	if len(l.runts) > 0 {
 		i := comparableSearchGreaterThanOrEqualTo(key, l.runts)
-		if !(key.Less(l.runts[i]) || key.Greater(l.runts[i])) {
+		if !(key.Less(l.runts[i]) || l.runts[i].Less(key)) {
 			value = l.values[i]
 			ok = true
 		}
@@ -584,7 +578,7 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 	// When the new value will become the first element in a leaf, which is only
 	// possible for an empty tree, or when new key comes after final leaf runt,
 	// a simple append will suffice.
-	if len(ln.runts) == 0 || key.Greater(ln.runts[len(ln.runts)-1]) {
+	if len(ln.runts) == 0 || ln.runts[len(ln.runts)-1].Less(key) {
 		value := callback(nil, false)
 		ln.runts = append(ln.runts, key)
 		ln.values = append(ln.values, value)
@@ -594,7 +588,7 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 
 	index := comparableSearchGreaterThanOrEqualTo(key, ln.runts)
 
-	if !(key.Less(ln.runts[index]) || key.Greater(ln.runts[index])) {
+	if !(key.Less(ln.runts[index]) || ln.runts[index].Less(key)) {
 		// When the key matches the runt, merely need to update the value.
 		ln.values[index] = callback(ln.values[index], true)
 		ln.unlock()
