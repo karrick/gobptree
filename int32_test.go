@@ -204,9 +204,7 @@ func TestInt32BinarySearch(t *testing.T) {
 func TestNewInt32TreeReturnsErrorWhenInvalidOrder(t *testing.T) {
 	for _, v := range []int{0, -1, 1, 3, 11} {
 		_, err := NewInt32Tree(v)
-		if err == nil {
-			t.Errorf("GOT: %v; WANT: %v", err, fmt.Sprintf("power of 2: %d", v))
-		}
+		ensureError(t, err, fmt.Sprintf("multiple of 2: %d", v))
 	}
 }
 
