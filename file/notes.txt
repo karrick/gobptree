@@ -1,0 +1,75 @@
+Should be able to derive the tree parameters from the final block in the
+file:
+
+  * ORDER
+  * BLOCKSIZE
+  * WAL FILE
+  * WAL OFFSET
+  * anything else?
+
+When a new FileInt64Tree is created on secondary storage, there will
+be ORDER leaf nodes, followed by a single internal node. This will
+happen ORDER times, at which point the internal node will be followed
+by an additional internal node that points to all of the previously
+written internal nodes. This process continues, appending blocks to
+the file, until the root node is written. The root node will contain
+enough meta data to reconstruct parameters of the B+Tree required for
+reading.
+
+This format would allow additional nodes to be appended to the file,
+provided that a new root node is always appended last to the file
+itself. This allows re-use of valid blocks of data from an existing
+file as data is modified, deleted, or added to the tree. This would
+require an out of band reference pointing to the final root node in
+the tree. That could be done by filename, such that a file named
+foo-22020096 would suggest that a valid root node is found at offset
+22020096 from the start of the file, and on recovery, any additional
+bytes after that referenced root node can be truncated, as they
+represent a partially updated on-disk version of the tree.
+
+In this case, something that is making changes to the file, perhaps
+merging in new data, would lock the file for exclusive access after
+the current root node, then begin to add blocks, locking them along
+the way. Once all the data has been appended to the file, and a new
+root ndoe has been written, an atomic file rename operation can update
+the file.
+
+Would it make sense to have a list of "offset rewrites" in the head
+node?  It might help, but I'd prefer to not do this at the time. The
+time complexity of cross-referencing every offset in the file with
+this rewrite list is onerous. It would be more performant to simply
+write a new leaf or internal node that lists the correct offsets.
+
+// just write the leaves when they are complete.
+
+// because leaves hold user values, which have various sizes, how deal with
+// taking their individual sizes into consideration?
+
+// Eventually keep list of orphaned blocks so they one day might be re-used.
+
+// Cursor needs to provide both a Key() and a Value() method, so the client can
+// choose to load the key, inspect it, and only possibly load the value, which
+// might be quite large. The leaf node must have a list of keys and either a
+// list of offsets, or each value must be preceded by its size. I think I prefer
+// the list of keys, a list of offsets, then finally one value written one after
+// the next. A file leaf node may be longer than a block, to accommodate values
+// which do not fit in a block.
+
+// Do we need a blob type, which stores serialized data?
+
+// Load a leaf node, keeping keys and offsets in memory. Instead of having
+// offsets relative to start of block, can have them relative to start of
+// file. Normally they will simply be file positions in sequence, but when a
+// value for a key changes, the changes can be written in new blocks, and new
+// leaf nodes will be written, with most of the offsets pointing to the older
+// still-valid data, but all changed values will point to new offsets. Heavy
+// churn on data values adversely affects reading values, because it breaks some
+// of the streaming, however, it greatly prolongs the data on the file system.
+
+// Leaf node, which can be multiple blocks, and Internal node, which is always
+// one block.
+
+// Can fit multiple internal nodes in a block, 512 internal nodes, (32 order, 16 bytes per order)
+
+Root node could contain displacement to previous root.
+
