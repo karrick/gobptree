@@ -15,10 +15,10 @@ Search functions are non-blocking.
 
 ComparableTree is designed to use any data structure type as a datum
 key that implements the Comparable interface. Namely, any data
-structure that has `Less(interface{}) bool`, and `ZeroValue()
-Comparable` methods. Examples of this flexible B+Tree implementation
-are provided in the `godoc` documentation as well as the test files
-for the ComparableTree type.
+structure that has methods for both `Less(interface{}) bool`, and
+`ZeroValue() Comparable`. Examples of this flexible B+Tree
+implementation are provided in the `godoc` documentation as well as
+the test files for the ComparableTree type.
 
 Other tree types are provided as optimized versions of their
 respective data types.
