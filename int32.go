@@ -1,7 +1,6 @@
 package gobptree
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -335,8 +334,8 @@ type Int32Tree struct {
 // NewInt32Tree returns a newly initialized Int32Tree of the specified
 // order.
 func NewInt32Tree(order int) (*Int32Tree, error) {
-	if order <= 0 || order%2 == 1 {
-		return nil, fmt.Errorf("cannot create tree when order is not a multiple of 2: %d", order)
+	if err := checkOrder(order); err != nil {
+		return nil, err
 	}
 	return &Int32Tree{
 		root: &int32LeafNode{

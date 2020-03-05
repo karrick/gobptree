@@ -1,7 +1,6 @@
 package gobptree
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -352,8 +351,8 @@ type ComparableTree struct {
 // NewComparableTree returns a newly initialized ComparableTree of the specified
 // order.
 func NewComparableTree(order int) (*ComparableTree, error) {
-	if order <= 0 || order%2 == 1 {
-		return nil, fmt.Errorf("cannot create tree when order is not a multiple of 2: %d", order)
+	if err := checkOrder(order); err != nil {
+		return nil, err
 	}
 	return &ComparableTree{
 		root: &comparableLeafNode{

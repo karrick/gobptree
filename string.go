@@ -1,7 +1,6 @@
 package gobptree
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -335,8 +334,8 @@ type StringTree struct {
 // NewStringTree returns a newly initialized StringTree of the specified
 // order.
 func NewStringTree(order int) (*StringTree, error) {
-	if order <= 0 || order%2 == 1 {
-		return nil, fmt.Errorf("cannot create tree when order is not a multiple of 2: %d", order)
+	if err := checkOrder(order); err != nil {
+		return nil, err
 	}
 	return &StringTree{
 		root: &stringLeafNode{
