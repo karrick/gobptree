@@ -897,20 +897,20 @@ func TestComparableDelete(t *testing.T) {
 	}
 
 	for _, v := range randomizedValues {
-		d.Insert(testString(v), uint32(v))
+		d.Insert(testString(strconv.Itoa(v)), uint32(v))
 	}
 
 	for _, v := range randomizedValues {
-		if _, ok := d.Search(testString(v)); !ok {
+		if _, ok := d.Search(testString(strconv.Itoa(v))); !ok {
 			t.Fatalf("GOT: %v; WANT: %v", ok, true)
 		}
 	}
 
 	for _, v := range randomizedValues {
-		d.Delete(testString(v))
+		d.Delete(testString(strconv.Itoa(v)))
 	}
 
 	t.Run("empty", func(t *testing.T) {
-		d.Delete(testString(3))
+		d.Delete(testString(strconv.Itoa(3)))
 	})
 }
