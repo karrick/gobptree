@@ -185,7 +185,8 @@ func (i *int64InternalNode) isInternal() bool { return true }
 func (i *int64InternalNode) lock() { i.mutex.Lock() }
 
 // maybeSplit splits the node, giving half of its values to its new sibling,
-// when the node is too full to accept any more values.
+// when the node is too full to accept any more values. When it returns a new
+// right sibling, it is locked.
 //
 // NOTE: This loop assumes the tree's order is a multiple of 2, which must be
 // guarded for at tree instantiation time.
@@ -198,6 +199,8 @@ func (i *int64InternalNode) maybeSplit(order int) (int64Node, int64Node) {
 		runts:    make([]int64, newNodeRunts, order),
 		children: make([]int64Node, newNodeRunts, order),
 	}
+	sibling.lock() // newly created sibling should be locked
+
 	// Right half of this node moves to sibling.
 	for j := 0; j < newNodeRunts; j++ {
 		sibling.runts[j] = i.runts[newNodeRunts+j]
@@ -290,7 +293,8 @@ func (l *int64LeafNode) isInternal() bool { return false }
 func (l *int64LeafNode) lock() { l.mutex.Lock() }
 
 // maybeSplit splits the node, giving half of its values to its new sibling,
-// when the node is too full to accept any more values.
+// when the node is too full to accept any more values. When it returns a new
+// right sibling, it is locked.
 //
 // NOTE: This loop assumes the tree's order is a multiple of 2, which must be
 // guarded for at tree instantiation time.
@@ -304,6 +308,8 @@ func (l *int64LeafNode) maybeSplit(order int) (int64Node, int64Node) {
 		values: make([]interface{}, newNodeRunts, order),
 		next:   l.next,
 	}
+	sibling.lock() // newly created sibling should be locked
+
 	// Right half of this node moves to sibling.
 	for j := 0; j < newNodeRunts; j++ {
 		sibling.runts[j] = l.runts[newNodeRunts+j]
@@ -383,9 +389,10 @@ func (t *Int64Tree) Insert(key int64, value interface{}) {
 		}
 		// Decide whether we need to descend left or right.
 		if key >= rightSmallest {
-			right.lock()
 			n.unlock() // unlock the left, since same node
 			n = right
+		} else {
+			right.unlock()
 		}
 	}
 
@@ -415,9 +422,11 @@ func (t *Int64Tree) Insert(key int64, value interface{}) {
 			parent.runts[index+1] = rightSmallest
 			// Decide whether we need to descend left or right.
 			if key >= rightSmallest {
-				right.lock()   // grab lock on its new sibling
+				// right.lock()   // grab lock on its new sibling
 				child.unlock() // release lock on child
 				child = right  // descend to newly created sibling
+			} else {
+				right.unlock()
 			}
 		}
 
@@ -508,13 +517,14 @@ func (t *Int64Tree) Update(key int64, callback func(interface{}, bool) interface
 		rightSmallest := right.smallest()
 		t.root = &int64InternalNode{
 			runts:    []int64{leftSmallest, rightSmallest},
-			children: []int64Node{left, right},
+			children: []int64Node{left, right}, // 511
 		}
 		// Decide whether we need to descend left or right.
 		if key >= rightSmallest {
-			right.lock()
 			n.unlock() // unlock the left, since same node
 			n = right
+		} else {
+			right.unlock()
 		}
 	}
 
@@ -522,7 +532,7 @@ func (t *Int64Tree) Update(key int64, callback func(interface{}, bool) interface
 		parent := n.(*int64InternalNode)
 		index := int64SearchLessThanOrEqualTo(key, parent.runts)
 
-		child := parent.children[index]
+		child := parent.children[index] // 525
 		child.lock()
 
 		if index == 0 {
@@ -544,9 +554,11 @@ func (t *Int64Tree) Update(key int64, callback func(interface{}, bool) interface
 			parent.runts[index+1] = rightSmallest
 			// Decide whether we need to descend left or right.
 			if key >= rightSmallest {
-				right.lock()   // grab lock on its new sibling
+				// right.lock()   // grab lock on its new sibling
 				child.unlock() // release lock on child
 				child = right  // descend to newly created sibling
+			} else {
+				right.unlock()
 			}
 		}
 
