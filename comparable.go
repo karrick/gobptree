@@ -8,14 +8,14 @@ import (
 // below is a trivial example of a comparable data structure using strings. The
 // ZeroValue method ought to return the zero-value for a data-structure.
 //
-//     type String string
+//	type String string
 //
-//     func (a String) Less(b interface{}) bool {
-//         bs, ok := b.(String)
-//         return ok && string(a) < string(bs)
-//     }
+//	func (a String) Less(b interface{}) bool {
+//	    bs, ok := b.(String)
+//	    return ok && string(a) < string(bs)
+//	}
 //
-//     func (_ String) ZeroValue() Comparable { return String("") }
+//	func (_ String) ZeroValue() Comparable { return String("") }
 type Comparable interface {
 	Less(interface{}) bool
 	ZeroValue() Comparable
