@@ -5,10 +5,10 @@ import (
 	"sync"
 )
 
-// genericSearchGreaterThanOrEqualTo returns the index of the first value from
-// Values that is greater than or equal to key.  search for index of runt that
-// is greater than or equal to key.
-func genericSearchGreaterThanOrEqualTo[K cmp.Ordered](key K, Values []K) int {
+// searchGreaterThanOrEqualTo returns the index of the first value from Values
+// that is greater than or equal to key.  search for index of runt that is
+// greater than or equal to key.
+func searchGreaterThanOrEqualTo[K cmp.Ordered](key K, Values []K) int {
 	var lo int
 
 	hi := len(Values)
@@ -35,10 +35,10 @@ loop:
 	return m
 }
 
-// genericSearchLessThanOrEqualTo returns the index of the first value from
-// Values that is less than or equal to key.
-func genericSearchLessThanOrEqualTo[K cmp.Ordered](key K, Values []K) int {
-	index := genericSearchGreaterThanOrEqualTo(key, Values)
+// searchLessThanOrEqualTo returns the index of the first value from Values
+// that is less than or equal to key.
+func searchLessThanOrEqualTo[K cmp.Ordered](key K, Values []K) int {
+	index := searchGreaterThanOrEqualTo(key, Values)
 	// convert result to less than or equal to
 	if index == len(Values) || key < Values[index] {
 		if index > 0 {
@@ -82,11 +82,11 @@ func (left *genericInternalNode[K]) absorbRight(sibling genericNode[K]) {
 }
 
 func (right *genericInternalNode[K]) adoptFromLeft(sibling genericNode[K]) {
-	var zero K
+	var zeroValue K
 
 	left := sibling.(*genericInternalNode[K])
 
-	right.Runts = append(right.Runts, zero)
+	right.Runts = append(right.Runts, zeroValue)
 	right.Children = append(right.Children, nil)
 	copy(right.Runts[1:], right.Runts[0:])
 	copy(right.Children[1:], right.Children[0:])
@@ -115,8 +115,10 @@ func (left *genericInternalNode[K]) adoptFromRight(sibling genericNode[K]) {
 
 func (i *genericInternalNode[K]) count() int { return len(i.Runts) }
 
+// deleteKey removes key and its value from the node, returning true when the
+// node has fewer items than minSize.
 func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
-	index := genericSearchLessThanOrEqualTo(key, i.Runts)
+	index := searchLessThanOrEqualTo(key, i.Runts)
 	child := i.Children[index]
 	child.lock()
 	defer child.unlock()
@@ -124,7 +126,9 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 	if !child.deleteKey(minSize, key) {
 		return false
 	}
-	// POST: child is too small
+
+	// POST: child is too small; need to combine node with one of its
+	// immediate neighbors.
 
 	var leftSibling, rightSibling genericNode[K]
 	var leftCount, rightCount int
@@ -215,7 +219,7 @@ func (i *genericInternalNode[K]) maybeSplit(order int) (genericNode[K], genericN
 		sibling.Children[j] = i.Children[newNodeRunts+j]
 	}
 
-	// Clear the Runts and pointers from the original node.
+	// Clear the runts and children pointers from the original node.
 	i.Runts = i.Runts[:newNodeRunts]
 	i.Children = i.Children[:newNodeRunts]
 
@@ -258,11 +262,11 @@ func (left *genericLeafNode[K]) absorbRight(sibling genericNode[K]) {
 }
 
 func (right *genericLeafNode[K]) adoptFromLeft(sibling genericNode[K]) {
-	var zero K
+	var zeroValue K
 
 	left := sibling.(*genericLeafNode[K])
 
-	right.Runts = append(right.Runts, zero)
+	right.Runts = append(right.Runts, zeroValue)
 	right.Values = append(right.Values, nil)
 	copy(right.Runts[1:], right.Runts[0:])
 	copy(right.Values[1:], right.Values[0:])
@@ -289,7 +293,7 @@ func (left *genericLeafNode[K]) adoptFromRight(sibling genericNode[K]) {
 func (l *genericLeafNode[K]) count() int { return len(l.Runts) }
 
 func (l *genericLeafNode[K]) deleteKey(minSize int, key K) bool {
-	index := genericSearchGreaterThanOrEqualTo(key, l.Runts)
+	index := searchGreaterThanOrEqualTo(key, l.Runts)
 	if index == len(l.Runts) || key != l.Runts[index] {
 		return false
 	}
@@ -391,7 +395,7 @@ func (t *GenericTree[K]) Delete(key K) {
 // Insert inserts the key-value pair into the tree, replacing the existing value
 // with the new value if the key is already in the tree.
 func (t *GenericTree[K]) Insert(key K, value any) {
-	var zero K
+	var zeroValue K
 
 	n := t.root
 	n.lock()
@@ -419,7 +423,7 @@ func (t *GenericTree[K]) Insert(key K, value any) {
 
 	for n.isInternal() {
 		parent := n.(*genericInternalNode[K])
-		index := genericSearchLessThanOrEqualTo(key, parent.Runts)
+		index := searchLessThanOrEqualTo(key, parent.Runts)
 
 		child := parent.Children[index]
 		child.lock()
@@ -434,7 +438,7 @@ func (t *GenericTree[K]) Insert(key K, value any) {
 		// Split the internal node when required.
 		if _, right := child.maybeSplit(t.order); right != nil {
 			// Insert sibling to the right of current node.
-			parent.Runts = append(parent.Runts, zero)
+			parent.Runts = append(parent.Runts, zeroValue)
 			parent.Children = append(parent.Children, nil)
 			copy(parent.Runts[index+2:], parent.Runts[index+1:])
 			copy(parent.Children[index+2:], parent.Children[index+1:])
@@ -467,7 +471,7 @@ func (t *GenericTree[K]) Insert(key K, value any) {
 		return
 	}
 
-	index := genericSearchGreaterThanOrEqualTo(key, ln.Runts)
+	index := searchGreaterThanOrEqualTo(key, ln.Runts)
 
 	if key == ln.Runts[index] {
 		// When the key matches the runt, merely need to update the value.
@@ -479,7 +483,7 @@ func (t *GenericTree[K]) Insert(key K, value any) {
 	// Make room for and insert the new key-value pair into leaf.
 
 	// Append zero Values to make room in arrays
-	ln.Runts = append(ln.Runts, zero)
+	ln.Runts = append(ln.Runts, zeroValue)
 	ln.Values = append(ln.Values, nil)
 	// Shift elements to the right to make room for new data
 	copy(ln.Runts[index+1:], ln.Runts[index:])
@@ -498,7 +502,7 @@ func (t *GenericTree[K]) Search(key K) (any, bool) {
 	n.lock()
 	for n.isInternal() {
 		parent := n.(*genericInternalNode[K])
-		child := parent.Children[genericSearchLessThanOrEqualTo(key, parent.Runts)]
+		child := parent.Children[searchLessThanOrEqualTo(key, parent.Runts)]
 		child.lock()
 		parent.unlock()
 		n = child
@@ -506,7 +510,7 @@ func (t *GenericTree[K]) Search(key K) (any, bool) {
 	l := n.(*genericLeafNode[K])
 
 	if len(l.Runts) > 0 {
-		i := genericSearchGreaterThanOrEqualTo(key, l.Runts)
+		i := searchGreaterThanOrEqualTo(key, l.Runts)
 		if key == l.Runts[i] {
 			value = l.Values[i]
 			ok = true
@@ -524,7 +528,7 @@ func (t *GenericTree[K]) Search(key K) (any, bool) {
 // returns, the key will exist in the tree with the new value returned by the
 // callback function.
 func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
-	var zero K
+	var zeroValue K
 
 	n := t.root
 	n.lock()
@@ -552,7 +556,7 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 
 	for n.isInternal() {
 		parent := n.(*genericInternalNode[K])
-		index := genericSearchLessThanOrEqualTo(key, parent.Runts)
+		index := searchLessThanOrEqualTo(key, parent.Runts)
 
 		child := parent.Children[index] // 525
 		child.lock()
@@ -567,7 +571,7 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 		// Split the internal node when required.
 		if _, right := child.maybeSplit(t.order); right != nil {
 			// Insert sibling to the right of current node.
-			parent.Runts = append(parent.Runts, zero)
+			parent.Runts = append(parent.Runts, zeroValue)
 			parent.Children = append(parent.Children, nil)
 			copy(parent.Runts[index+2:], parent.Runts[index+1:])
 			copy(parent.Children[index+2:], parent.Children[index+1:])
@@ -601,7 +605,7 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 		return
 	}
 
-	index := genericSearchGreaterThanOrEqualTo(key, ln.Runts)
+	index := searchGreaterThanOrEqualTo(key, ln.Runts)
 
 	if key == ln.Runts[index] {
 		// When the key matches the runt, merely need to update the value.
@@ -613,7 +617,7 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 	// Make room for and insert the new key-value pair into leaf.
 
 	// Append zero Values to make room in arrays
-	ln.Runts = append(ln.Runts, zero)
+	ln.Runts = append(ln.Runts, zeroValue)
 	ln.Values = append(ln.Values, nil)
 	// Shift elements to the right to make room for new data
 	copy(ln.Runts[index+1:], ln.Runts[index:])
@@ -638,13 +642,13 @@ func (t *GenericTree[K]) NewScanner(key K) *GenericCursor[K] {
 	n.lock()
 	for n.isInternal() {
 		parent := n.(*genericInternalNode[K])
-		child := parent.Children[genericSearchLessThanOrEqualTo(key, parent.Runts)]
+		child := parent.Children[searchLessThanOrEqualTo(key, parent.Runts)]
 		child.lock()
 		parent.unlock()
 		n = child
 	}
 	ln := n.(*genericLeafNode[K])
-	return newGenericCursor(ln, genericSearchGreaterThanOrEqualTo(key, ln.Runts))
+	return newGenericCursor(ln, searchGreaterThanOrEqualTo(key, ln.Runts))
 }
 
 // GenericCursor is used to enumerate key-value pairs from the tree in

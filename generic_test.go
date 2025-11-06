@@ -12,74 +12,74 @@ func TestGenericBinarySearch(t *testing.T) {
 	t.Run("skip Values", func(t *testing.T) {
 		Values := []int64{1, 3, 5, 7, 9, 11, 13}
 
-		if got, want := genericSearchGreaterThanOrEqualTo(0, Values), 0; got != want {
+		if got, want := searchGreaterThanOrEqualTo(0, Values), 0; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(1, Values), 0; got != want {
+		if got, want := searchGreaterThanOrEqualTo(1, Values), 0; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(2, Values), 1; got != want {
+		if got, want := searchGreaterThanOrEqualTo(2, Values), 1; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(3, Values), 1; got != want {
+		if got, want := searchGreaterThanOrEqualTo(3, Values), 1; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(4, Values), 2; got != want {
+		if got, want := searchGreaterThanOrEqualTo(4, Values), 2; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(5, Values), 2; got != want {
+		if got, want := searchGreaterThanOrEqualTo(5, Values), 2; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(6, Values), 3; got != want {
+		if got, want := searchGreaterThanOrEqualTo(6, Values), 3; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(7, Values), 3; got != want {
+		if got, want := searchGreaterThanOrEqualTo(7, Values), 3; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(8, Values), 4; got != want {
+		if got, want := searchGreaterThanOrEqualTo(8, Values), 4; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(9, Values), 4; got != want {
+		if got, want := searchGreaterThanOrEqualTo(9, Values), 4; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(10, Values), 5; got != want {
+		if got, want := searchGreaterThanOrEqualTo(10, Values), 5; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(11, Values), 5; got != want {
+		if got, want := searchGreaterThanOrEqualTo(11, Values), 5; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(12, Values), 6; got != want {
+		if got, want := searchGreaterThanOrEqualTo(12, Values), 6; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(13, Values), 6; got != want {
+		if got, want := searchGreaterThanOrEqualTo(13, Values), 6; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := genericSearchGreaterThanOrEqualTo(14, Values), 6; got != want {
+		if got, want := searchGreaterThanOrEqualTo(14, Values), 6; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 	})
 	t.Run("greater than or equal to", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
-			i := genericSearchGreaterThanOrEqualTo(1, nil)
+			i := searchGreaterThanOrEqualTo(1, nil)
 			if got, want := i, 0; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 		t.Run("single item list", func(t *testing.T) {
 			t.Run("key before", func(t *testing.T) {
-				i := genericSearchGreaterThanOrEqualTo(1, []int64{2})
+				i := searchGreaterThanOrEqualTo(1, []int64{2})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match", func(t *testing.T) {
-				i := genericSearchGreaterThanOrEqualTo(2, []int64{2})
+				i := searchGreaterThanOrEqualTo(2, []int64{2})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after", func(t *testing.T) {
-				i := genericSearchGreaterThanOrEqualTo(3, []int64{2})
+				i := searchGreaterThanOrEqualTo(3, []int64{2})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
@@ -87,43 +87,43 @@ func TestGenericBinarySearch(t *testing.T) {
 		})
 		t.Run("multiple item list", func(t *testing.T) {
 			t.Run("key before first", func(t *testing.T) {
-				i := genericSearchGreaterThanOrEqualTo(1, []int64{2, 4, 6})
+				i := searchGreaterThanOrEqualTo(1, []int64{2, 4, 6})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match first", func(t *testing.T) {
-				i := genericSearchGreaterThanOrEqualTo(2, []int64{2, 4, 6})
+				i := searchGreaterThanOrEqualTo(2, []int64{2, 4, 6})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between first and second", func(t *testing.T) {
-				i := genericSearchGreaterThanOrEqualTo(3, []int64{2, 4, 6})
+				i := searchGreaterThanOrEqualTo(3, []int64{2, 4, 6})
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match second", func(t *testing.T) {
-				i := genericSearchGreaterThanOrEqualTo(4, []int64{2, 4, 6})
+				i := searchGreaterThanOrEqualTo(4, []int64{2, 4, 6})
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between second and third", func(t *testing.T) {
-				i := genericSearchGreaterThanOrEqualTo(5, []int64{2, 4, 6})
+				i := searchGreaterThanOrEqualTo(5, []int64{2, 4, 6})
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match third", func(t *testing.T) {
-				i := genericSearchGreaterThanOrEqualTo(6, []int64{2, 4, 6})
+				i := searchGreaterThanOrEqualTo(6, []int64{2, 4, 6})
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after third", func(t *testing.T) {
-				i := genericSearchGreaterThanOrEqualTo(7, []int64{2, 4, 6})
+				i := searchGreaterThanOrEqualTo(7, []int64{2, 4, 6})
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
@@ -132,26 +132,26 @@ func TestGenericBinarySearch(t *testing.T) {
 	})
 	t.Run("less than or equal to", func(t *testing.T) {
 		t.Run("empty list", func(t *testing.T) {
-			i := genericSearchLessThanOrEqualTo(1, nil)
+			i := searchLessThanOrEqualTo(1, nil)
 			if got, want := i, 0; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 		t.Run("single item list", func(t *testing.T) {
 			t.Run("key before", func(t *testing.T) {
-				i := genericSearchLessThanOrEqualTo(1, []int64{2})
+				i := searchLessThanOrEqualTo(1, []int64{2})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match", func(t *testing.T) {
-				i := genericSearchLessThanOrEqualTo(int64(2), []int64{2})
+				i := searchLessThanOrEqualTo(int64(2), []int64{2})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after", func(t *testing.T) {
-				i := genericSearchLessThanOrEqualTo(3, []int64{2})
+				i := searchLessThanOrEqualTo(3, []int64{2})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
@@ -159,43 +159,43 @@ func TestGenericBinarySearch(t *testing.T) {
 		})
 		t.Run("multiple item list", func(t *testing.T) {
 			t.Run("key before first", func(t *testing.T) {
-				i := genericSearchLessThanOrEqualTo(1, []int64{2, 4, 6})
+				i := searchLessThanOrEqualTo(1, []int64{2, 4, 6})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match first", func(t *testing.T) {
-				i := genericSearchLessThanOrEqualTo(int64(2), []int64{2, 4, 6})
+				i := searchLessThanOrEqualTo(int64(2), []int64{2, 4, 6})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between first and second", func(t *testing.T) {
-				i := genericSearchLessThanOrEqualTo(3, []int64{2, 4, 6})
+				i := searchLessThanOrEqualTo(3, []int64{2, 4, 6})
 				if got, want := i, 0; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match second", func(t *testing.T) {
-				i := genericSearchLessThanOrEqualTo(4, []int64{2, 4, 6})
+				i := searchLessThanOrEqualTo(4, []int64{2, 4, 6})
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key between second and third", func(t *testing.T) {
-				i := genericSearchLessThanOrEqualTo(5, []int64{2, 4, 6})
+				i := searchLessThanOrEqualTo(5, []int64{2, 4, 6})
 				if got, want := i, 1; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key match third", func(t *testing.T) {
-				i := genericSearchLessThanOrEqualTo(6, []int64{2, 4, 6})
+				i := searchLessThanOrEqualTo(6, []int64{2, 4, 6})
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
 			})
 			t.Run("key after third", func(t *testing.T) {
-				i := genericSearchLessThanOrEqualTo(7, []int64{2, 4, 6})
+				i := searchLessThanOrEqualTo(7, []int64{2, 4, 6})
 				if got, want := i, 2; got != want {
 					t.Fatalf("GOT: %v; WANT: %v", got, want)
 				}
