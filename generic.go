@@ -189,7 +189,7 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 
 func (i *genericInternalNode[K]) isInternal() bool { return true }
 
-func (i *genericInternalNode[K]) lock() { i.mutex.Lock() }
+func (i *genericInternalNode[K]) lock() { /* i.mutex.Lock() */ }
 
 // maybeSplit splits the node, giving half of its Values to its new sibling,
 // when the node is too full to accept any more Values. When it does return a
@@ -233,7 +233,7 @@ func (i *genericInternalNode[K]) smallest() K {
 	return i.Runts[0]
 }
 
-func (i *genericInternalNode[K]) unlock() { i.mutex.Unlock() }
+func (i *genericInternalNode[K]) unlock() { /* i.mutex.Unlock() */ }
 
 // genericLeafNode represents a leaf node for a Int64Tree using
 // Int64 keys.
@@ -306,7 +306,7 @@ func (l *genericLeafNode[K]) deleteKey(minSize int, key K) bool {
 
 func (l *genericLeafNode[K]) isInternal() bool { return false }
 
-func (l *genericLeafNode[K]) lock() { l.mutex.Lock() }
+func (l *genericLeafNode[K]) lock() { /* l.mutex.Lock() */ }
 
 // maybeSplit splits the node, giving half of its Values to its new sibling,
 // when the node is too full to accept any more Values. When it does return a
@@ -352,12 +352,13 @@ func (l *genericLeafNode[K]) smallest() K {
 	return l.Runts[0]
 }
 
-func (l *genericLeafNode[K]) unlock() { l.mutex.Unlock() }
+func (l *genericLeafNode[K]) unlock() { /* l.mutex.Unlock() */ }
 
 // GenericTree is a B+Tree of elements using Int64 keys.
 type GenericTree[K cmp.Ordered] struct {
 	root  genericNode[K]
 	order int
+	rootMutex sync.Mutex
 }
 
 // NewGenericTree returns a newly initialized GenericTree of the specified
@@ -377,6 +378,9 @@ func NewGenericTree[K cmp.Ordered](order int) (*GenericTree[K], error) {
 
 // Delete removes the key-value pair from the tree.
 func (t *GenericTree[K]) Delete(key K) {
+	t.rootMutex.Lock()
+	defer t.rootMutex.Unlock()
+
 	t.root.lock()
 	defer t.root.unlock()
 
@@ -395,6 +399,9 @@ func (t *GenericTree[K]) Delete(key K) {
 // Insert inserts the key-value pair into the tree, replacing the existing value
 // with the new value if the key is already in the tree.
 func (t *GenericTree[K]) Insert(key K, value any) {
+	t.rootMutex.Lock()
+	defer t.rootMutex.Unlock()
+
 	var zeroValue K
 
 	n := t.root
@@ -496,6 +503,9 @@ func (t *GenericTree[K]) Insert(key K, value any) {
 
 // Search returns the value associated with key from the tree.
 func (t *GenericTree[K]) Search(key K) (any, bool) {
+	t.rootMutex.Lock()
+	defer t.rootMutex.Unlock()
+
 	var value any
 	var ok bool
 	n := t.root
@@ -528,6 +538,9 @@ func (t *GenericTree[K]) Search(key K) (any, bool) {
 // returns, the key will exist in the tree with the new value returned by the
 // callback function.
 func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
+	t.rootMutex.Lock()
+	defer t.rootMutex.Unlock()
+
 	var zeroValue K
 
 	n := t.root
