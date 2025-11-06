@@ -185,8 +185,8 @@ func (i *int64InternalNode) isInternal() bool { return true }
 func (i *int64InternalNode) lock() { i.mutex.Lock() }
 
 // maybeSplit splits the node, giving half of its values to its new sibling,
-// when the node is too full to accept any more values. When it returns a new
-// right sibling, it is locked.
+// when the node is too full to accept any more values. When it does return a
+// new right sibling, that node is locked.
 //
 // NOTE: This loop assumes the tree's order is a multiple of 2, which must be
 // guarded for at tree instantiation time.
@@ -194,21 +194,28 @@ func (i *int64InternalNode) maybeSplit(order int) (int64Node, int64Node) {
 	if len(i.runts) < order {
 		return i, nil
 	}
+
 	newNodeRunts := order >> 1
 	sibling := &int64InternalNode{
 		runts:    make([]int64, newNodeRunts, order),
 		children: make([]int64Node, newNodeRunts, order),
 	}
-	sibling.lock() // newly created sibling should be locked
+
+	// NOTE: Newly created sibling should be locked before attached to the
+	// tree in order to prevent a data race where another goroutine finds this
+	// new node.
+	sibling.lock()
 
 	// Right half of this node moves to sibling.
 	for j := 0; j < newNodeRunts; j++ {
 		sibling.runts[j] = i.runts[newNodeRunts+j]
 		sibling.children[j] = i.children[newNodeRunts+j]
 	}
+
 	// Clear the runts and pointers from the original node.
 	i.runts = i.runts[:newNodeRunts]
 	i.children = i.children[:newNodeRunts]
+
 	return i, sibling
 }
 
@@ -293,8 +300,8 @@ func (l *int64LeafNode) isInternal() bool { return false }
 func (l *int64LeafNode) lock() { l.mutex.Lock() }
 
 // maybeSplit splits the node, giving half of its values to its new sibling,
-// when the node is too full to accept any more values. When it returns a new
-// right sibling, it is locked.
+// when the node is too full to accept any more values. When it does return a
+// new right sibling, that node is locked.
 //
 // NOTE: This loop assumes the tree's order is a multiple of 2, which must be
 // guarded for at tree instantiation time.
@@ -302,23 +309,30 @@ func (l *int64LeafNode) maybeSplit(order int) (int64Node, int64Node) {
 	if len(l.runts) < order {
 		return l, nil
 	}
+
 	newNodeRunts := order >> 1
 	sibling := &int64LeafNode{
 		runts:  make([]int64, newNodeRunts, order),
 		values: make([]interface{}, newNodeRunts, order),
 		next:   l.next,
 	}
-	sibling.lock() // newly created sibling should be locked
+
+	// NOTE: Newly created sibling should be locked before attached to the
+	// tree in order to prevent a data race where another goroutine finds this
+	// new node.
+	sibling.lock()
 
 	// Right half of this node moves to sibling.
 	for j := 0; j < newNodeRunts; j++ {
 		sibling.runts[j] = l.runts[newNodeRunts+j]
 		sibling.values[j] = l.values[newNodeRunts+j]
 	}
+
 	// Clear the runts and pointers from the original node.
 	l.runts = l.runts[:newNodeRunts]
 	l.values = l.values[:newNodeRunts]
 	l.next = sibling
+
 	return l, sibling
 }
 
@@ -422,7 +436,6 @@ func (t *Int64Tree) Insert(key int64, value interface{}) {
 			parent.runts[index+1] = rightSmallest
 			// Decide whether we need to descend left or right.
 			if key >= rightSmallest {
-				// right.lock()   // grab lock on its new sibling
 				child.unlock() // release lock on child
 				child = right  // descend to newly created sibling
 			} else {
@@ -554,7 +567,6 @@ func (t *Int64Tree) Update(key int64, callback func(interface{}, bool) interface
 			parent.runts[index+1] = rightSmallest
 			// Decide whether we need to descend left or right.
 			if key >= rightSmallest {
-				// right.lock()   // grab lock on its new sibling
 				child.unlock() // release lock on child
 				child = right  // descend to newly created sibling
 			} else {
