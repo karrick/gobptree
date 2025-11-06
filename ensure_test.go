@@ -3,6 +3,9 @@ package gobptree
 import (
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	// "github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func ensureError(tb testing.TB, err error, contains ...string) {
@@ -19,5 +22,12 @@ func ensureError(tb testing.TB, err error, contains ...string) {
 				tb.Errorf("GOT: %v; WANT: %q", err, stub)
 			}
 		}
+	}
+}
+
+func ensureSame(tb testing.TB, got, want any) {
+	tb.Helper()
+	if diff := cmp.Diff(want, got); diff != "" {
+		tb.Errorf("(-want; +got)\n%s", diff)
 	}
 }
