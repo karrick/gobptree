@@ -1,7 +1,14 @@
 package gobptree
 
+// NOTE: Because many insertion loops successively insert larger numbers, when
+// splitting nodes, rather than splitting a node evenly, consider splitting it
+// in a way that puts an extra node on the left side, so the next node to be
+// added will end up on the right side, and they both remain balanced.
+
 import (
 	"cmp"
+	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -48,42 +55,44 @@ func searchLessThanOrEqualTo[K cmp.Ordered](key K, Values []K) int {
 	return index
 }
 
-// genericNode represents either an internal or a leaf node for a
-// Int64Tree using Int64 keys.
-type genericNode[K cmp.Ordered] interface {
-	absorbRight(genericNode[K])
-	adoptFromLeft(genericNode[K])
-	adoptFromRight(genericNode[K])
+// node represents either an internal or a leaf node for a GenericTree with
+// keys of any cmp.Ordered type.
+type node[K cmp.Ordered] interface {
+	absorbRight(node[K])
+	adoptFromLeft(node[K])
+	adoptFromRight(node[K])
 	count() int
 	deleteKey(int, K) bool
 	isInternal() bool
 	lock()
-	maybeSplit(order int) (genericNode[K], genericNode[K])
+	maybeSplit(order int) (node[K], node[K])
 	smallest() K
 	unlock()
 }
 
-// genericInternalNode represents an internal node for a GenericTree with keys
-// of any cmp.Ordered type. Its data is stored in a pair of strided arrays,
-// where Runts[0] corresponds to the smallest key in Children[0], and so forth
-// for additional slice elements.
-type genericInternalNode[K cmp.Ordered] struct {
-	// Runts represent the smallest key from corresponding Children node.
-	Runts    []K
+// internalNode represents an internal node for a GenericTree with keys of any
+// cmp.Ordered type. Its data is stored in a pair of strided arrays, where
+// Runts[0] corresponds to the smallest key in Children[0], and so forth for
+// additional slice elements.
+type internalNode[K cmp.Ordered] struct {
+	// Runts stores the smallest key value for the corresponding Children
+	// slice. Runts[n] corresponds to Children[n].
+	Runts []K
 
-	// Children represent pointers to additional nodes of the tree.
-	Children []genericNode[K]
+	// Children stores pointers to additional nodes of the tree. Runts[n]
+	// corresponds to Chidlren[n].
+	Children []node[K]
 
 	// mutex guards access to this node.
-	mutex    sync.Mutex
+	mutex sync.Mutex
 }
 
 // absorbRight moves all of the sibling node's Runts and Children into left
 // node.
-// 
+//
 // NOTE: sibling must be locked before calling.
-func (left *genericInternalNode[K]) absorbRight(sibling genericNode[K]) {
-	right := sibling.(*genericInternalNode[K])
+func (left *internalNode[K]) absorbRight(sibling node[K]) {
+	right := sibling.(*internalNode[K])
 
 	left.Runts = append(left.Runts, right.Runts...)
 	left.Children = append(left.Children, right.Children...)
@@ -98,10 +107,10 @@ func (left *genericInternalNode[K]) absorbRight(sibling genericNode[K]) {
 // after making room for it at the beginning of the right node's slices.
 //
 // NOTE: sibling must be locked before calling.
-func (right *genericInternalNode[K]) adoptFromLeft(sibling genericNode[K]) {
+func (right *internalNode[K]) adoptFromLeft(sibling node[K]) {
 	var keyZeroValue K
 
-	left := sibling.(*genericInternalNode[K])
+	left := sibling.(*internalNode[K])
 
 	// Extend slices of the right node by appending the zero value of the key
 	// and pointer data types.
@@ -126,8 +135,8 @@ func (right *genericInternalNode[K]) adoptFromLeft(sibling genericNode[K]) {
 // adoptFromRight moves one element from the sibling node to the left node.
 //
 // NOTE: sibling must be locked before calling.
-func (left *genericInternalNode[K]) adoptFromRight(sibling genericNode[K]) {
-	right := sibling.(*genericInternalNode[K])
+func (left *internalNode[K]) adoptFromRight(sibling node[K]) {
+	right := sibling.(*internalNode[K])
 
 	// Copy the head element of the right node to the tail position of the
 	// left node.
@@ -144,42 +153,42 @@ func (left *genericInternalNode[K]) adoptFromRight(sibling genericNode[K]) {
 	right.Children = right.Children[:index]
 }
 
-func (i *genericInternalNode[K]) count() int { return len(i.Runts) }
+func (n *internalNode[K]) count() int { return len(n.Runts) }
 
 // deleteKey removes key and its value from the node, returning true when the
 // node has at least minSize elements after the deletion, and returning false
 // when the node has fewer elements than minSize.
-func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
+func (n *internalNode[K]) deleteKey(minSize int, key K) bool {
 	// Determine index of the child node where key would be stored.
-	index := searchLessThanOrEqualTo(key, i.Runts)
+	index := searchLessThanOrEqualTo(key, n.Runts)
 
 	// Acquire exclusive lock to the child node.
-	child := i.Children[index]
+	child := n.Children[index]
 	child.lock()
 	defer child.unlock()
 
 	// Delete the key from the child.
 	if child.deleteKey(minSize, key) {
-		// Recall that deleteKey returns true when the child node has at least
-		// minSize elements after the deletion.
+		// Recall that deleteKey returns true when after the delete the child
+		// node still has at least minSize elements.
 		return true
 	}
 
 	// POST: child is too small; need to combine node with one of its
 	// immediate neighbors.
 
-	var leftSibling, rightSibling genericNode[K]
+	var leftSibling, rightSibling node[K]
 	var leftCount, rightCount int
 
-	if index < len(i.Runts)-1 {
+	if index < len(n.Runts)-1 {
 		// try right sibling first to encourage left leaning trees
-		rightSibling = i.Children[index+1]
+		rightSibling = n.Children[index+1]
 		rightSibling.lock()
 		defer rightSibling.unlock()
-		rightCount = rightSibling.count();
+		rightCount = rightSibling.count()
 		if rightCount > minSize {
 			child.adoptFromRight(rightSibling)
-			i.Runts[index+1] = rightSibling.smallest()
+			n.Runts[index+1] = rightSibling.smallest()
 			return true
 		}
 	}
@@ -187,10 +196,10 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 
 	if index > 0 {
 		// try left sibling
-		leftSibling = i.Children[index-1]
+		leftSibling = n.Children[index-1]
 		leftSibling.lock()
 		defer leftSibling.unlock()
-		leftCount = leftSibling.count();
+		leftCount = leftSibling.count()
 		if leftCount > minSize {
 			child.adoptFromLeft(leftSibling)
 			return true
@@ -204,12 +213,12 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 
 	if leftCount > 0 {
 		leftSibling.absorbRight(child)
-		copy(i.Runts[index:], i.Runts[index+1:])
-		i.Runts = i.Runts[:len(i.Runts)-1]
-		copy(i.Children[index:], i.Children[index+1:])
-		i.Children = i.Children[:len(i.Children)-1]
+		copy(n.Runts[index:], n.Runts[index+1:])
+		n.Runts = n.Runts[:len(n.Runts)-1]
+		copy(n.Children[index:], n.Children[index+1:])
+		n.Children = n.Children[:len(n.Children)-1]
 		// This node has one fewer Children.
-		return len(i.Runts) >= minSize
+		return len(n.Runts) >= minSize
 	}
 
 	// When right has no Children, then should not be in a position where left
@@ -219,17 +228,17 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 	}
 
 	child.absorbRight(rightSibling)
-	copy(i.Runts[index+1:], i.Runts[index+2:])
-	i.Runts = i.Runts[:len(i.Runts)-1]
-	copy(i.Children[index+1:], i.Children[index+2:])
-	i.Children = i.Children[:len(i.Children)-1]
+	copy(n.Runts[index+1:], n.Runts[index+2:])
+	n.Runts = n.Runts[:len(n.Runts)-1]
+	copy(n.Children[index+1:], n.Children[index+2:])
+	n.Children = n.Children[:len(n.Children)-1]
 	// This node has one fewer Children.
-	return len(i.Runts) >= minSize
+	return len(n.Runts) >= minSize
 }
 
-func (i *genericInternalNode[K]) isInternal() bool { return true }
+func (n *internalNode[K]) isInternal() bool { return true }
 
-func (i *genericInternalNode[K]) lock() { /* i.mutex.Lock() */ }
+func (n *internalNode[K]) lock() { /* i.mutex.Lock() */ }
 
 // maybeSplit splits the node, giving half of its Values to its new sibling,
 // when the node is too full to accept any more Values. When it does return a
@@ -237,15 +246,15 @@ func (i *genericInternalNode[K]) lock() { /* i.mutex.Lock() */ }
 //
 // NOTE: This loop assumes the tree's order is a multiple of 2, which must be
 // guarded for at tree instantiation time.
-func (i *genericInternalNode[K]) maybeSplit(order int) (genericNode[K], genericNode[K]) {
-	if len(i.Runts) < order {
-		return i, nil
+func (n *internalNode[K]) maybeSplit(order int) (node[K], node[K]) {
+	if len(n.Runts) < order {
+		return n, nil
 	}
 
 	newNodeRunts := order >> 1
-	sibling := &genericInternalNode[K]{
+	sibling := &internalNode[K]{
 		Runts:    make([]K, newNodeRunts, order),
-		Children: make([]genericNode[K], newNodeRunts, order),
+		Children: make([]node[K], newNodeRunts, order),
 	}
 
 	// NOTE: Newly created sibling should be locked before attached to the
@@ -255,42 +264,51 @@ func (i *genericInternalNode[K]) maybeSplit(order int) (genericNode[K], genericN
 
 	// Right half of this node moves to sibling.
 	for j := 0; j < newNodeRunts; j++ {
-		sibling.Runts[j] = i.Runts[newNodeRunts+j]
-		sibling.Children[j] = i.Children[newNodeRunts+j]
+		sibling.Runts[j] = n.Runts[newNodeRunts+j]
+		sibling.Children[j] = n.Children[newNodeRunts+j]
 	}
 
 	// Clear the runts and children pointers from the original node.
-	i.Runts = i.Runts[:newNodeRunts]
-	i.Children = i.Children[:newNodeRunts]
+	n.Runts = n.Runts[:newNodeRunts]
+	n.Children = n.Children[:newNodeRunts]
 
-	return i, sibling
+	return n, sibling
 }
 
-func (i *genericInternalNode[K]) smallest() K {
-	if len(i.Runts) == 0 {
+func (n *internalNode[K]) smallest() K {
+	if len(n.Runts) == 0 {
 		panic("internal node has no Children")
 	}
-	return i.Runts[0]
+	return n.Runts[0]
 }
 
-func (i *genericInternalNode[K]) unlock() { /* i.mutex.Unlock() */ }
+func (n *internalNode[K]) unlock() { /* i.mutex.Unlock() */ }
 
-// genericLeafNode represents a leaf node for a Int64Tree using
-// Int64 keys.
-type genericLeafNode[K cmp.Ordered] struct {
-	Runts  []K
+// internalNode represents a leaf node for a GenericTree with keys of any
+// cmp.Ordered type. Its data is stored in a pair of strided arrays, where
+// Runts[0] corresponds to the value in Values[0], and so forth for additional
+// slice elements.
+type leafNode[K cmp.Ordered] struct {
+	// Runts stores the key corresponding to the Values slice. Runts[n]
+	// corresponds to Values[n].
+	Runts []K
+
+	// Values stores values of the tree. Runts[n] corresponds to Values[n].
 	Values []any
-	Next   *genericLeafNode[K] // points to next leaf to allow enumeration
-	mutex  sync.Mutex
+
+	Next *leafNode[K] // Next points to next leaf to allow enumeration
+
+	// mutex guards access to this node.
+	mutex sync.Mutex
 }
 
 // absorbRight moves all of the sibling node's Runts and Values into left
 // node, and sets the left's Next field to the value of the sibling's Next
 // field.
-// 
+//
 // NOTE: sibling must be locked before calling.
-func (left *genericLeafNode[K]) absorbRight(sibling genericNode[K]) {
-	right := sibling.(*genericLeafNode[K])
+func (left *leafNode[K]) absorbRight(sibling node[K]) {
+	right := sibling.(*leafNode[K])
 
 	if left.Next != right {
 		// Superfluous check
@@ -312,10 +330,10 @@ func (left *genericLeafNode[K]) absorbRight(sibling genericNode[K]) {
 // after making room for it at the beginning of the right node's slices.
 //
 // NOTE: sibling must be locked before calling.
-func (right *genericLeafNode[K]) adoptFromLeft(sibling genericNode[K]) {
+func (right *leafNode[K]) adoptFromLeft(sibling node[K]) {
 	var keyZeroValue K
 
-	left := sibling.(*genericLeafNode[K])
+	left := sibling.(*leafNode[K])
 
 	// Extend slices of the right node by appending the zero value of the key
 	// and pointer data types.
@@ -340,8 +358,8 @@ func (right *genericLeafNode[K]) adoptFromLeft(sibling genericNode[K]) {
 // adoptFromRight moves one element from the sibling node to the left node.
 //
 // NOTE: sibling must be locked before calling.
-func (left *genericLeafNode[K]) adoptFromRight(sibling genericNode[K]) {
-	right := sibling.(*genericLeafNode[K])
+func (left *leafNode[K]) adoptFromRight(sibling node[K]) {
+	right := sibling.(*leafNode[K])
 
 	// Copy the head element of the right node to the tail position of the
 	// left node.
@@ -358,23 +376,23 @@ func (left *genericLeafNode[K]) adoptFromRight(sibling genericNode[K]) {
 	right.Values = right.Values[:index]
 }
 
-func (l *genericLeafNode[K]) count() int { return len(l.Runts) }
+func (n *leafNode[K]) count() int { return len(n.Runts) }
 
-func (l *genericLeafNode[K]) deleteKey(minSize int, key K) bool {
-	index := searchGreaterThanOrEqualTo(key, l.Runts)
-	if index == len(l.Runts) || key != l.Runts[index] {
+func (n *leafNode[K]) deleteKey(minSize int, key K) bool {
+	index := searchGreaterThanOrEqualTo(key, n.Runts)
+	if index == len(n.Runts) || key != n.Runts[index] {
 		return true
 	}
-	copy(l.Runts[index:], l.Runts[index+1:])
-	copy(l.Values[index:], l.Values[index+1:])
-	l.Runts = l.Runts[:len(l.Runts)-1]
-	l.Values = l.Values[:len(l.Values)-1]
-	return len(l.Runts) >= minSize
+	copy(n.Runts[index:], n.Runts[index+1:])
+	copy(n.Values[index:], n.Values[index+1:])
+	n.Runts = n.Runts[:len(n.Runts)-1]
+	n.Values = n.Values[:len(n.Values)-1]
+	return len(n.Runts) >= minSize
 }
 
-func (l *genericLeafNode[K]) isInternal() bool { return false }
+func (n *leafNode[K]) isInternal() bool { return false }
 
-func (l *genericLeafNode[K]) lock() { /* l.mutex.Lock() */ }
+func (n *leafNode[K]) lock() { /* l.mutex.Lock() */ }
 
 // maybeSplit splits the node, giving half of its Values to its new sibling,
 // when the node is too full to accept any more Values. When it does return a
@@ -382,16 +400,16 @@ func (l *genericLeafNode[K]) lock() { /* l.mutex.Lock() */ }
 //
 // NOTE: This loop assumes the tree's order is a multiple of 2, which must be
 // guarded for at tree instantiation time.
-func (l *genericLeafNode[K]) maybeSplit(order int) (genericNode[K], genericNode[K]) {
-	if len(l.Runts) < order {
-		return l, nil
+func (n *leafNode[K]) maybeSplit(order int) (node[K], node[K]) {
+	if len(n.Runts) < order {
+		return n, nil
 	}
 
 	newNodeRunts := order >> 1
-	sibling := &genericLeafNode[K]{
+	sibling := &leafNode[K]{
 		Runts:  make([]K, newNodeRunts, order),
 		Values: make([]any, newNodeRunts, order),
-		Next:   l.Next,
+		Next:   n.Next,
 	}
 
 	// NOTE: Newly created sibling should be locked before attached to the
@@ -401,31 +419,31 @@ func (l *genericLeafNode[K]) maybeSplit(order int) (genericNode[K], genericNode[
 
 	// Right half of this node moves to sibling.
 	for j := 0; j < newNodeRunts; j++ {
-		sibling.Runts[j] = l.Runts[newNodeRunts+j]
-		sibling.Values[j] = l.Values[newNodeRunts+j]
+		sibling.Runts[j] = n.Runts[newNodeRunts+j]
+		sibling.Values[j] = n.Values[newNodeRunts+j]
 	}
 
 	// Clear the Runts and pointers from the original node.
-	l.Runts = l.Runts[:newNodeRunts]
-	l.Values = l.Values[:newNodeRunts]
-	l.Next = sibling
+	n.Runts = n.Runts[:newNodeRunts]
+	n.Values = n.Values[:newNodeRunts]
+	n.Next = sibling
 
-	return l, sibling
+	return n, sibling
 }
 
-func (l *genericLeafNode[K]) smallest() K {
-	if len(l.Runts) == 0 {
+func (n *leafNode[K]) smallest() K {
+	if len(n.Runts) == 0 {
 		panic("leaf node has no Children")
 	}
-	return l.Runts[0]
+	return n.Runts[0]
 }
 
-func (l *genericLeafNode[K]) unlock() { /* l.mutex.Unlock() */ }
+func (n *leafNode[K]) unlock() { /* l.mutex.Unlock() */ }
 
 // GenericTree is a B+Tree of elements using Int64 keys.
 type GenericTree[K cmp.Ordered] struct {
-	root  genericNode[K]
-	order int
+	root      node[K]
+	order     int
 	rootMutex sync.Mutex
 }
 
@@ -436,7 +454,7 @@ func NewGenericTree[K cmp.Ordered](order int) (*GenericTree[K], error) {
 		return nil, err
 	}
 	return &GenericTree[K]{
-		root: &genericLeafNode[K]{
+		root: &leafNode[K]{
 			Runts:  make([]K, 0, order),
 			Values: make([]any, 0, order),
 		},
@@ -456,9 +474,15 @@ func (t *GenericTree[K]) Delete(key K) {
 		// Root is only too small when fewer than 2 Children
 		return
 	}
+
+	// POST: Root has either 0 or 1 elements.
+
+	// If root is a leaf node, then it is already as small as it can
+	// be. Otherwise, when root is an internal node, discard
+
 	// Root might be an internal or a leaf node. If leaf node, the root is
 	// already as small as can be.
-	if root, ok := t.root.(*genericInternalNode[K]); ok {
+	if root, ok := t.root.(*internalNode[K]); ok {
 		// Root has outlived its usefulness when it has only a single child.
 		t.root = root.Children[0]
 	}
@@ -483,9 +507,9 @@ func (t *GenericTree[K]) Insert(key K, value any) {
 			leftSmallest = key
 		}
 		rightSmallest := right.smallest()
-		t.root = &genericInternalNode[K]{
+		t.root = &internalNode[K]{
 			Runts:    []K{leftSmallest, rightSmallest},
-			Children: []genericNode[K]{left, right},
+			Children: []node[K]{left, right},
 		}
 		// Decide whether we need to descend left or right.
 		if key >= rightSmallest {
@@ -497,7 +521,7 @@ func (t *GenericTree[K]) Insert(key K, value any) {
 	}
 
 	for n.isInternal() {
-		parent := n.(*genericInternalNode[K])
+		parent := n.(*internalNode[K])
 		index := searchLessThanOrEqualTo(key, parent.Runts)
 
 		child := parent.Children[index]
@@ -534,7 +558,7 @@ func (t *GenericTree[K]) Insert(key K, value any) {
 		n = child
 	}
 
-	ln := n.(*genericLeafNode[K])
+	ln := n.(*leafNode[K])
 
 	// When the new value will become the first element in a leaf, which is only
 	// possible for an empty tree, or when new key comes after final leaf runt,
@@ -579,13 +603,13 @@ func (t *GenericTree[K]) Search(key K) (any, bool) {
 	n := t.root
 	n.lock()
 	for n.isInternal() {
-		parent := n.(*genericInternalNode[K])
+		parent := n.(*internalNode[K])
 		child := parent.Children[searchLessThanOrEqualTo(key, parent.Runts)]
 		child.lock()
 		parent.unlock()
 		n = child
 	}
-	l := n.(*genericLeafNode[K])
+	l := n.(*leafNode[K])
 
 	if len(l.Runts) > 0 {
 		i := searchGreaterThanOrEqualTo(key, l.Runts)
@@ -622,9 +646,9 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 			leftSmallest = key
 		}
 		rightSmallest := right.smallest()
-		t.root = &genericInternalNode[K]{
+		t.root = &internalNode[K]{
 			Runts:    []K{leftSmallest, rightSmallest},
-			Children: []genericNode[K]{left, right}, // 511
+			Children: []node[K]{left, right}, // 511
 		}
 		// Decide whether we need to descend left or right.
 		if key >= rightSmallest {
@@ -636,7 +660,7 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 	}
 
 	for n.isInternal() {
-		parent := n.(*genericInternalNode[K])
+		parent := n.(*internalNode[K])
 		index := searchLessThanOrEqualTo(key, parent.Runts)
 
 		child := parent.Children[index] // 525
@@ -673,7 +697,7 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 		n = child
 	}
 
-	ln := n.(*genericLeafNode[K])
+	ln := n.(*leafNode[K])
 
 	// When the new value will become the first element in a leaf, which is only
 	// possible for an empty tree, or when new key comes after final leaf runt,
@@ -709,76 +733,116 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 	ln.unlock()
 }
 
-// NewScanner returns a cursor that iteratively returns key-value pairs from the
-// tree in ascending order starting at key, or if key is not found the next key,
-// and ending after all successive pairs have been returned. To enumerate all
-// Values in a GenericTree, invoke with key set to math.MinInt64.
+// NewScanner returns a cursor that iteratively returns key-value pairs from
+// the tree in ascending order starting at the specified key, or, if key is
+// not found, the next key; and ending after all successive pairs have been
+// returned. To enumerate all values in a tree, use NewScannerAll, which is
+// faster than invoking this method with the minimum key value.
 //
-// NOTE: This function exists still holding the lock on one of the tree's leaf
-// nodes, which may block other operations on the tree that require modification
-// of the locked node. The leaf node is only unlocked either by closing the
-// Cursor, or after all key-value pairs have been visited using Scan.
+// NOTE: This function exits still holding the lock on one of the tree's leaf
+// nodes, which may block other operations on the tree that require
+// modification of the locked node. The leaf node is only unlocked after
+// closing the Cursor.
 func (t *GenericTree[K]) NewScanner(key K) *GenericCursor[K] {
 	n := t.root
 	n.lock()
-	for n.isInternal() {
-		parent := n.(*genericInternalNode[K])
-		child := parent.Children[searchLessThanOrEqualTo(key, parent.Runts)]
-		child.lock()
-		parent.unlock()
-		n = child
+
+	for {
+		switch tv := n.(type) {
+		case *internalNode[K]:
+			child := tv.Children[searchLessThanOrEqualTo(key, tv.Runts)]
+			child.lock()
+			tv.unlock()
+			n = child
+		case *leafNode[K]:
+			return newGenericCursor(tv, searchGreaterThanOrEqualTo(key, tv.Runts))
+		default:
+			panic(fmt.Errorf("GOT: %#v; WANT: node", n))
+		}
 	}
-	ln := n.(*genericLeafNode[K])
-	return newGenericCursor(ln, searchGreaterThanOrEqualTo(key, ln.Runts))
+}
+
+// NewScannerAll returns a cursor that iteratively returns all key-value pairs
+// from the tree in ascending order. To start scanning at a particular key
+// value, use NewScanner. This method is faster than invoking NewScanner with
+// the minimum key value.
+//
+// NOTE: This function exits still holding the lock on one of the tree's leaf
+// nodes, which may block other operations on the tree that require
+// modification of the locked node. The leaf node is only unlocked after
+// closing the Cursor.
+func (t *GenericTree[K]) NewScannerAll() *GenericCursor[K] {
+	n := t.root
+	n.lock()
+
+	for {
+		switch tv := n.(type) {
+		case *internalNode[K]:
+			child := tv.Children[0] // go to the left most child
+			child.lock()
+			tv.unlock()
+			n = child
+		case *leafNode[K]:
+			return newGenericCursor(tv, 0) // start at left most value
+		default:
+			panic(fmt.Errorf("GOT: %#v; WANT: node", n))
+		}
+	}
 }
 
 // GenericCursor is used to enumerate key-value pairs from the tree in
 // ascending order.
 type GenericCursor[K cmp.Ordered] struct {
-	l *genericLeafNode[K]
-	i int
+	leaf  *leafNode[K]
+	index int
 }
 
-func newGenericCursor[K cmp.Ordered](l *genericLeafNode[K], i int) *GenericCursor[K] {
-	// Initialize cursor with index one smaller than requested, so initial scan
-	// lines up the cursor to reference the desired key-value pair.
-	return &GenericCursor[K]{l: l, i: i - 1}
+func newGenericCursor[K cmp.Ordered](leaf *leafNode[K], index int) *GenericCursor[K] {
+	// Initialize cursor with index one smaller than requested, so initial
+	// scan lines up the cursor to reference the desired key-value pair. The
+	// fact that this needs to use the index before the starting index is the
+	// only reason why this method exists, as the logic is invoked from
+	// several places.
+	return &GenericCursor[K]{leaf: leaf, index: index - 1}
 }
 
 // Close releases the lock on the leaf node under the cursor. This method is
 // provided to signal no further intention of scanning the remainder key-value
-// pairs in the tree. It is not necessary to call Close if Scan is called
-// repeatedly until Scan returns false.
+// pairs in the tree. It is necessary to invoke this method in order to
+// release the lock the cursor holds on one of the leaf nodes in the tree.
 func (c *GenericCursor[K]) Close() error {
-	if c.l != nil {
-		c.l.unlock()
-		c.l = nil
+	if c.leaf == nil {
+		return errors.New("cannot Close a closed Scanner")
 	}
+	c.leaf.unlock()
+	c.leaf = nil
 	return nil
 }
 
-// Pair returns the key-value pair referenced by the cursor.
+// Pair returns the key-value pair referenced by the cursor. This method will
+// panic when invoked before invoking the Scan method at least once.
 func (c *GenericCursor[K]) Pair() (K, any) {
-	return c.l.Runts[c.i], c.l.Values[c.i]
+	return c.leaf.Runts[c.index], c.leaf.Values[c.index]
 }
 
-// Scan advances the cursor to reference the next key-value pair in the tree in
-// ascending order, and returns true when there is at least one more key-value
-// pair to be observed with the Pair method. If the final key-value pair has
-// already been observed, this unlocks the final leaf in the tree and returns
-// false.
+// Scan advances the cursor to reference the next key-value pair in the tree
+// in ascending order, and returns true when there is at least one more
+// key-value pair to be observed with the Pair method. If the final key-value
+// pair has already been observed, this unlocks the final leaf in the tree and
+// returns false. This method must be invoked at least once before invoking
+// the Pair method.
 func (c *GenericCursor[K]) Scan() bool {
-	if c.i++; c.i == len(c.l.Runts) {
-		if c.l.Next == nil {
-			c.l.unlock()
-			c.l = nil
+	if c.index++; c.index == len(c.leaf.Runts) {
+		n := c.leaf.Next
+		if n == nil {
+			// c.leaf.unlock()
+			// c.leaf = nil
 			return false
 		}
-		n := c.l.Next
 		n.lock()
-		c.l.unlock()
-		c.l = n
-		c.i = 0
+		c.leaf.unlock()
+		c.leaf = n
+		c.index = 0
 	}
 	return true
 }

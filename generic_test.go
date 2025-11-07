@@ -4,9 +4,133 @@ import (
 	"cmp"
 	"fmt"
 	"testing"
-	// gcmp "github.com/google/go-cmp/cmp"
-	// "github.com/google/go-cmp/cmp/cmpopts"
 )
+
+////////////////////////////////////////
+// test helpers to ensure two nodes match
+////////////////////////////////////////
+
+func ensureItems[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want []any) {
+	t.Helper()
+
+	var got []any
+
+	scanner := tree.NewScannerAll()
+	for scanner.Scan() {
+		item, _ := scanner.Pair()
+		got = append(got, item)
+	}
+
+	ensureError(t, scanner.Close())
+	ensureSame(t, got, want)
+}
+
+func ensureInternalNodesMatch[K cmp.Ordered](t *testing.T, got, want *internalNode[K]) {
+	t.Helper()
+
+	if got == nil {
+		if want != nil {
+			t.Errorf("GOT: %#v; WANT: %#v", got, want)
+		}
+		return
+	} else if want == nil {
+		t.Errorf("GOT: %#v; WANT: %#v", got, want)
+	}
+
+	t.Run("Runts", func(t *testing.T) {
+		t.Helper()
+		ensureSame(t, got.Runts, want.Runts)
+	})
+
+	t.Run("Children", func(t *testing.T) {
+		if g, w := len(got.Children), len(want.Children); g != w {
+			t.Errorf("length(Children) GOT: %v; WANT: %v", g, w)
+		}
+		for i := 0; i < len(got.Children); i++ {
+			ensureNodesMatch(t, got.Children[i], want.Children[i])
+		}
+	})
+}
+
+func ensureLeafNodesMatch[K cmp.Ordered](t *testing.T, got, want *leafNode[K]) {
+	t.Helper()
+
+	if got == nil {
+		if want != nil {
+			t.Errorf("GOT: %#v; WANT: %#v", got, want)
+		}
+		return
+	} else if want == nil {
+		t.Errorf("GOT: %#v; WANT: %#v", got, want)
+	}
+
+	t.Run("Runts", func(t *testing.T) {
+		ensureSame(t, got.Runts, want.Runts)
+	})
+
+	t.Run("Values", func(t *testing.T) {
+		ensureSame(t, got.Values, want.Values)
+	})
+
+	t.Run("Next", func(t *testing.T) {
+		t.Skip("FIXME")
+		ensureLeafNodesMatch(t, got.Next, want.Next)
+	})
+}
+
+func ensureNodesMatch[K cmp.Ordered](t *testing.T, got, want node[K]) {
+	t.Helper()
+
+	switch e := want.(type) {
+	case *internalNode[K]:
+		a, ok := got.(*internalNode[K])
+		if !ok {
+			t.Errorf("GOT: %T; WANT: %T", got, want)
+		}
+		ensureInternalNodesMatch(t, a, e)
+	case *leafNode[K]:
+		a, ok := got.(*leafNode[K])
+		if !ok {
+			t.Errorf("GOT: %T; WANT: %T", got, want)
+		}
+		ensureLeafNodesMatch(t, a, e)
+	default:
+		t.Errorf("GOT: %T; WANT: node", got)
+	}
+}
+
+////////////////////////////////////////
+// test helpers to create new internal and leaf nodes
+////////////////////////////////////////
+
+func newInternalFrom[K cmp.Ordered](items ...node[K]) *internalNode[K] {
+	n := &internalNode[K]{
+		Runts:    make([]K, len(items)),
+		Children: make([]node[K], len(items)),
+	}
+	for i := 0; i < len(items); i++ {
+		n.Runts[i] = items[i].smallest()
+		n.Children[i] = items[i]
+	}
+	return n
+}
+
+func newLeafFrom[K cmp.Ordered](next *leafNode[K], items ...K) *leafNode[K] {
+	n := &leafNode[K]{
+		Runts:  make([]K, len(items)),
+		Values: make([]any, len(items)),
+		Next:   next,
+	}
+	for i := 0; i < len(items); i++ {
+		n.Runts[i] = items[i]
+		n.Values[i] = items[i]
+	}
+	return n
+}
+
+////////////////////////////////////////
+// tests
+////////////////////////////////////////
 
 func TestGenericBinarySearch(t *testing.T) {
 	t.Run("skip Values", func(t *testing.T) {
@@ -213,221 +337,552 @@ func TestNewGenericTreeReturnsErrorWhenInvalidOrder(t *testing.T) {
 	}
 }
 
-func genericLeafFrom[K cmp.Ordered](next *genericLeafNode[K], items ...K) *genericLeafNode[K] {
-	n := &genericLeafNode[K]{
-		Runts:  make([]K, len(items)),
-		Values: make([]any, len(items)),
-		Next:   next,
-	}
-	for i := 0; i < len(items); i++ {
-		n.Runts[i] = items[i]
-		n.Values[i] = items[i]
-	}
-	return n
-}
-
-func genericInternalFrom[K cmp.Ordered](items ...genericNode[K]) *genericInternalNode[K] {
-	n := &genericInternalNode[K]{
-		Runts:    make([]K, len(items)),
-		Children: make([]genericNode[K], len(items)),
-	}
-	for i := 0; i < len(items); i++ {
-		n.Runts[i] = items[i].smallest()
-		n.Children[i] = items[i]
-	}
-	return n
-}
-
-////////////////////////////////////////
-
-func ensureGenericLeaf[K cmp.Ordered](t *testing.T, got, want *genericLeafNode[K]) {
-	// t.Helper()
-
-	// if diff := gcmp.Diff(want, got, cmpopts.IgnoreFields(genericLeafNode[K]{}, "mutex")); diff != "" {
-	// 	t.Errorf("leaf node (-want; +got)\n%s", diff)
-	// }
-	// return
-
-	if got == nil {
-		if want != nil {
-			t.Errorf("GOT: %#v; WANT: %#v", got, want)
-		}
-		return
-	} else if want == nil {
-		t.Errorf("GOT: %#v; WANT: %#v", got, want)
-	}
-
-	t.Run("Runts", func(t *testing.T) {
-		ensureSame(t, got.Runts, want.Runts)
-	})
-
-	t.Run("Values", func(t *testing.T) {
-		ensureSame(t, got.Values, want.Values)
-	})
-
-	t.Run("Next", func(t *testing.T) {
-		t.Skip("FIXME")
-		ensureGenericLeaf(t, got.Next, want.Next)
-	})
-}
-
-func ensureGenericInternal[K cmp.Ordered](t *testing.T, got, want *genericInternalNode[K]) {
-	t.Helper()
-
-	// if diff := gcmp.Diff(want, got, cmpopts.IgnoreFields(genericInternalNode[K]{}, "mutex")); diff != "" {
-	// 	t.Errorf("internal node (-want; +got)\n%s", diff)
-	// }
-	// return
-
-	if got == nil {
-		if want != nil {
-			t.Errorf("GOT: %#v; WANT: %#v", got, want)
-		}
-		return
-	} else if want == nil {
-		t.Errorf("GOT: %#v; WANT: %#v", got, want)
-	}
-
-	t.Run("Runts", func(t *testing.T) {
-		t.Helper()
-		ensureSame(t, got.Runts, want.Runts)
-	})
-
-	t.Run("Children", func(t *testing.T) {
-		if g, w := len(got.Children), len(want.Children); g != w {
-			t.Errorf("length(Children) GOT: %v; WANT: %v", g, w)
-		}
-		for i := 0; i < len(got.Children); i++ {
-			ensureGenericNode(t, got.Children[i], want.Children[i])
-		}
-	})
-}
-
-func ensureGenericNode[K cmp.Ordered](t *testing.T, got, want genericNode[K]) {
-	t.Helper()
-	// ensureSame(t, got, want)
-	// return
-
-	switch e := want.(type) {
-	case *genericLeafNode[K]:
-		a, ok := got.(*genericLeafNode[K])
-		if got, want := ok, true; got != want {
-			t.Errorf("GOT: %T; WANT: %T", got, e)
-		}
-		ensureGenericLeaf(t, a, e)
-	case *genericInternalNode[K]:
-		a, ok := got.(*genericInternalNode[K])
-		if got, want := ok, true; got != want {
-			t.Errorf("GOT: %T; WANT: %T", got, e)
-		}
-		ensureGenericInternal(t, a, e)
-	default:
-		t.Errorf("GOT: %T; WANT: genericNode", want)
-	}
-}
-
-////////////////////////////////////////
-
 func TestGenericInternalNodeMaybeSplit(t *testing.T) {
-	leafD := genericLeafFrom(nil, 40, 41, 42, 43)
-	leafC := genericLeafFrom(leafD, 30, 31, 32, 33)
-	leafB := genericLeafFrom(leafC, 20, 21, 22, 23)
-	leafA := genericLeafFrom(leafB, 10, 11, 12, 13)
+	leafD := newLeafFrom(nil, 40, 41, 42, 43)
+	leafC := newLeafFrom(leafD, 30, 31, 32, 33)
+	leafB := newLeafFrom(leafC, 20, 21, 22, 23)
+	leafA := newLeafFrom(leafB, 10, 11, 12, 13)
 
-	ni := genericInternalFrom(leafA, leafB, leafC, leafD)
+	internal := newInternalFrom(leafA, leafB, leafC, leafD)
 
 	t.Run("does nothing when not full", func(t *testing.T) {
-		_, right := ni.maybeSplit(6)
+		_, right := internal.maybeSplit(6)
 		if right != nil {
 			t.Errorf("GOT: %v; WANT: %v", right, nil)
 		}
 	})
 
 	t.Run("splits when full", func(t *testing.T) {
-		expectedLeft := genericInternalFrom(leafA, leafB)
-		expectedRight := genericInternalFrom(leafC, leafD)
+		wantLeft := newInternalFrom(leafA, leafB)
+		wantRight := newInternalFrom(leafC, leafD)
 
-		leftNode, rightNode := ni.maybeSplit(4)
+		gotLeft, gotRight := internal.maybeSplit(4)
 
-		ensureGenericNode(t, leftNode, expectedLeft)
-		ensureGenericNode(t, rightNode, expectedRight)
+		ensureNodesMatch(t, gotLeft, wantLeft)
+		ensureNodesMatch(t, gotRight, wantRight)
 	})
 }
 
-func TestInternalGenericNodeInsertSmallerKey(t *testing.T) {
-	gimme := func() (*genericLeafNode[int], *genericLeafNode[int]) {
-		leafB := genericLeafFrom(nil, 21, 22)
-		leafA := genericLeafFrom(leafB, 12, 13)
-		return leafA, leafB
-	}
+func TestGenericInternalNodeInsertSmallerKey(t *testing.T) {
+	leafB := newLeafFrom(nil, 21, 22)
+	leafA := newLeafFrom(leafB, 12, 13)
 
-	leafA, leafB := gimme()
-	ni := genericInternalFrom(leafA, leafB)
+	internal := newInternalFrom(leafA, leafB)
 
-	d := &GenericTree[int]{root: ni, order: 4}
+	tree := &GenericTree[int]{root: internal, order: 4}
 
-	d.Insert(11, 11)
+	tree.Insert(11, 11)
 
-	if got, want := ni.Runts[0], 11; got != want {
-		t.Fatalf("GOT: %v; WANT: %v", got, want)
+	if got, want := internal.Runts[0], 11; got != want {
+		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
 }
 
-func TestGenericInsert(t *testing.T) {
-	// t.Skip("FIXME")
-
-	tree, _ := NewGenericTree[int](4)
-
-	t.Run("0", func(t *testing.T) {
-		tree.Insert(0, 0)
-		ensureGenericNode(t, tree.root, genericLeafFrom(nil, 0))
-	})
+func TestGenericInsertOrder2(t *testing.T) {
+	tree, err := NewGenericTree[int](2)
+	ensureError(t, err)
 
 	t.Run("1", func(t *testing.T) {
 		tree.Insert(1, 1)
-		ensureGenericNode(t, tree.root, genericLeafFrom(nil, 0, 1))
+
+		t.Run("contents", func(t *testing.T) {
+			ensureItems(t, tree, []any{1})
+		})
+
+		t.Run("structure", func(t *testing.T) {
+			ensureNodesMatch(t, tree.root, newLeafFrom(nil, 1))
+		})
 	})
 
 	t.Run("2", func(t *testing.T) {
 		tree.Insert(2, 2)
-		ensureGenericNode(t, tree.root, genericLeafFrom(nil, 0, 1, 2))
+
+		t.Run("contents", func(t *testing.T) {
+			ensureItems(t, tree, []any{1, 2})
+		})
+
+		t.Run("structure", func(t *testing.T) {
+			ensureNodesMatch(t, tree.root, newLeafFrom(nil, 1, 2))
+		})
 	})
 
 	t.Run("3", func(t *testing.T) {
 		tree.Insert(3, 3)
-		ensureGenericNode(t, tree.root, genericLeafFrom(nil, 0, 1, 2, 3))
+
+		t.Run("contents", func(t *testing.T) {
+			ensureItems(t, tree, []any{1, 2, 3})
+		})
+
+		t.Run("structure", func(t *testing.T) {
+			// internalA
+			//   |
+			//   + leafA
+			//   |   |
+			//   |   + 1
+			//   |
+			//   + leafB
+			//       |
+			//       + 2
+			//       + 3
+			leafB := newLeafFrom(nil, 2, 3)
+			leafA := newLeafFrom(leafB, 1)
+			internalA := newInternalFrom(leafA, leafB)
+			ensureNodesMatch(t, tree.root, internalA)
+		})
 	})
 
 	t.Run("4", func(t *testing.T) {
-		leafB := genericLeafFrom(nil, 2, 3, 4)
-		leafA := genericLeafFrom(leafB, 0, 1)
-
 		tree.Insert(4, 4)
-		ensureGenericNode(t, tree.root, genericInternalFrom(leafA, leafB))
+
+		t.Run("contents", func(t *testing.T) {
+			ensureItems(t, tree, []any{1, 2, 3, 4})
+		})
+
+		t.Run("structure", func(t *testing.T) {
+			// internalA
+			//   |
+			//   + internalB
+			//   |   |
+			//   |   + leafA
+			//   |       |
+			//   |       + 1
+			//   |
+			//   + internalC
+			//       |
+			//       + leafB
+			//       |   |
+			//       |   + 2
+			//       |
+			//       + leafC
+			//           |
+			//           + 3
+			//           + 4
+			leafC := newLeafFrom(nil, 3, 4)
+			leafB := newLeafFrom(leafC, 2)
+			leafA := newLeafFrom(leafB, 1)
+			internalC := newInternalFrom(leafB, leafC)
+			internalB := newInternalFrom(leafA)
+			internalA := newInternalFrom(internalB, internalC)
+			ensureNodesMatch(t, tree.root, internalA)
+		})
 	})
 
 	t.Run("5", func(t *testing.T) {
-		leafB := genericLeafFrom(nil, 2, 3, 4, 5)
-		leafA := genericLeafFrom(leafB, 0, 1)
-
+		t.Skip("FIXME")
 		tree.Insert(5, 5)
-		ensureGenericNode(t, tree.root, genericInternalFrom(leafA, leafB))
+
+		t.Run("contents", func(t *testing.T) {
+			ensureItems(t, tree, []any{1, 2, 3, 4, 5})
+		})
+
+		t.Run("structure", func(t *testing.T) {
+			// internalA
+			//   |
+			//   + internalB
+			//   |   |
+			//   |   + leafA
+			//   |       |
+			//   |       + 1
+			//   |
+			//   + internalC
+			//       |
+			//       + internalD
+			//       |   |
+			//       |   + leafB
+			//       |       |
+			//       |       + 2
+			//       |
+			//       + internalE
+			//           |
+			//           + leafC
+			//           |   |
+			//           |   + 3
+			//           |
+			//           + leafD
+			//               |
+			//               + 4
+			//               + 5
+			leafD := newLeafFrom(nil, 4, 5)
+			leafC := newLeafFrom(leafD, 3)
+			leafB := newLeafFrom(leafC, 2)
+			leafA := newLeafFrom(leafB, 1)
+			internalE := newInternalFrom(leafC, leafD)
+			internalD := newInternalFrom(leafB)
+			internalC := newInternalFrom(internalD, internalE)
+			internalB := newInternalFrom(leafA)
+			internalA := newInternalFrom(internalB, internalC)
+			ensureNodesMatch(t, tree.root, internalA)
+		})
+	})
+
+	// t.Run("5", func(t *testing.T) {
+	// 	tree.Insert(5, 5)
+
+	// 	leafB := newLeafFrom(nil, 3, 4, 5)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+	// 	ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB))
+	// })
+
+	// t.Run("6", func(t *testing.T) {
+	// 	tree.Insert(6, 6)
+
+	// 	leafB := newLeafFrom(nil, 3, 4, 5, 6)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+	// 	ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB))
+	// })
+
+	// t.Run("7", func(t *testing.T) {
+	// 	tree.Insert(7, 7)
+
+	// 	leafC := newLeafFrom(nil, 5, 6, 7)
+	// 	leafB := newLeafFrom(leafC, 3, 4)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+	// 	ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB, leafC))
+	// })
+
+	// t.Run("8", func(t *testing.T) {
+	// 	tree.Insert(8, 8)
+
+	// 	leafC := newLeafFrom(nil, 5, 6, 7, 8)
+	// 	leafB := newLeafFrom(leafC, 3, 4)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+	// 	ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB, leafC))
+	// })
+
+	// t.Run("9", func(t *testing.T) {
+	// 	tree.Insert(9, 9)
+
+	// 	leafD := newLeafFrom(nil, 7, 8, 9)
+	// 	leafC := newLeafFrom(leafD, 5, 6)
+	// 	leafB := newLeafFrom(leafC, 3, 4)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+	// 	ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB, leafC, leafD))
+	// })
+
+	// t.Run("10", func(t *testing.T) {
+	// 	tree.Insert(10, 10)
+
+	// 	// root -> internal A
+	// 	// internal A -> internal B, internal C
+	// 	// internal B -> leaf A, leaf B
+	// 	// internal C -> leaf C, leaf D
+
+	// 	leafD := newLeafFrom(nil, 7, 8, 9, 10)
+	// 	leafC := newLeafFrom(leafD, 5, 6)
+	// 	leafB := newLeafFrom(leafC, 3, 4)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+
+	// 	internalC := newInternalFrom(leafC, leafD)
+	// 	internalB := newInternalFrom(leafA, leafB)
+	// 	internalA := newInternalFrom(internalB, internalC)
+	// 	ensureNodesMatch(t, tree.root, internalA)
+	// })
+
+	// t.Run("11", func(t *testing.T) {
+	// 	tree.Insert(11, 11)
+
+	// 	// root -> internal A
+	// 	// internal A -> internal B, internal C
+	// 	// internal B -> leaf A, leaf B
+	// 	// internal C -> leaf C, leaf D, leaf E
+
+	// 	leafE := newLeafFrom(nil, 9, 10, 11)
+	// 	leafD := newLeafFrom(leafE, 7, 8)
+	// 	leafC := newLeafFrom(leafD, 5, 6)
+	// 	leafB := newLeafFrom(leafC, 3, 4)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+
+	// 	internalC := newInternalFrom(leafC, leafD, leafE)
+	// 	internalB := newInternalFrom(leafA, leafB)
+	// 	internalA := newInternalFrom(internalB, internalC)
+	// 	ensureNodesMatch(t, tree.root, internalA)
+	// })
+
+	// t.Run("12", func(t *testing.T) {
+	// 	tree.Insert(12, 12)
+
+	// 	// root -> internal A
+	// 	// internal A -> internal B, internal C
+	// 	// internal B -> leaf A, leaf B
+	// 	// internal C -> leaf C, leaf D, leaf E
+
+	// 	leafE := newLeafFrom(nil, 9, 10, 11, 12)
+	// 	leafD := newLeafFrom(leafE, 7, 8)
+	// 	leafC := newLeafFrom(leafD, 5, 6)
+	// 	leafB := newLeafFrom(leafC, 3, 4)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+
+	// 	internalC := newInternalFrom(leafC, leafD, leafE)
+	// 	internalB := newInternalFrom(leafA, leafB)
+	// 	internalA := newInternalFrom(internalB, internalC)
+	// 	ensureNodesMatch(t, tree.root, internalA)
+	// })
+
+	// t.Run("13", func(t *testing.T) {
+	// 	tree.Insert(13, 13)
+
+	// 	// root -> internal A
+	// 	// internal A -> internal B, internal C
+	// 	// internal B -> leaf A, leaf B
+	// 	// internal C -> leaf C, leaf D, leaf E, leaf F
+
+	// 	leafF := newLeafFrom(nil, 11, 12, 13)
+	// 	leafE := newLeafFrom(leafF, 9, 10)
+	// 	leafD := newLeafFrom(leafE, 7, 8)
+	// 	leafC := newLeafFrom(leafD, 5, 6)
+	// 	leafB := newLeafFrom(leafC, 3, 4)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+
+	// 	internalC := newInternalFrom(leafC, leafD, leafE, leafF)
+	// 	internalB := newInternalFrom(leafA, leafB)
+	// 	internalA := newInternalFrom(internalB, internalC)
+	// 	ensureNodesMatch(t, tree.root, internalA)
+	// })
+
+	// t.Run("14", func(t *testing.T) {
+	// 	tree.Insert(14, 14)
+
+	// 	// root -> internal A
+	// 	// internal A -> internal B, internal C
+	// 	// internal B -> leaf A, leaf B
+	// 	// internal C -> leaf C, leaf D, leaf E, leaf F
+
+	// 	leafF := newLeafFrom(nil, 11, 12, 13, 14)
+	// 	leafE := newLeafFrom(leafF, 9, 10)
+	// 	leafD := newLeafFrom(leafE, 7, 8)
+	// 	leafC := newLeafFrom(leafD, 5, 6)
+	// 	leafB := newLeafFrom(leafC, 3, 4)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+
+	// 	internalC := newInternalFrom(leafC, leafD, leafE, leafF)
+	// 	internalB := newInternalFrom(leafA, leafB)
+	// 	internalA := newInternalFrom(internalB, internalC)
+	// 	ensureNodesMatch(t, tree.root, internalA)
+	// })
+
+	// t.Run("15", func(t *testing.T) {
+	// 	tree.Insert(15, 15)
+
+	// 	// root -> internal A
+	// 	// internal A -> internal B, internal C, internal D
+	// 	// internal B -> leaf A, leaf B
+	// 	// internal C -> leaf C, leaf D
+	// 	// internal D -> leaf E, leaf F, leaf G
+
+	// 	leafG := newLeafFrom(nil, 13, 14, 15)
+	// 	leafF := newLeafFrom(leafG, 11, 12)
+	// 	leafE := newLeafFrom(leafF, 9, 10)
+	// 	leafD := newLeafFrom(leafE, 7, 8)
+	// 	leafC := newLeafFrom(leafD, 5, 6)
+	// 	leafB := newLeafFrom(leafC, 3, 4)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+
+	// 	internalD := newInternalFrom(leafE, leafF, leafG)
+	// 	internalC := newInternalFrom(leafC, leafD)
+	// 	internalB := newInternalFrom(leafA, leafB)
+	// 	internalA := newInternalFrom(internalB, internalC, internalD)
+	// 	ensureNodesMatch(t, tree.root, internalA)
+	// })
+}
+
+func TestGenericInsertOrder4(t *testing.T) {
+	tree, err := NewGenericTree[int](4)
+	ensureError(t, err)
+
+	t.Run("1", func(t *testing.T) {
+		tree.Insert(1, 1)
+		ensureNodesMatch(t, tree.root, newLeafFrom(nil, 1))
+	})
+
+	t.Run("2", func(t *testing.T) {
+		tree.Insert(2, 2)
+		ensureNodesMatch(t, tree.root, newLeafFrom(nil, 1, 2))
+	})
+
+	t.Run("3", func(t *testing.T) {
+		tree.Insert(3, 3)
+		ensureNodesMatch(t, tree.root, newLeafFrom(nil, 1, 2, 3))
+	})
+
+	t.Run("4", func(t *testing.T) {
+		tree.Insert(4, 4)
+		ensureNodesMatch(t, tree.root, newLeafFrom(nil, 1, 2, 3, 4))
+	})
+
+	t.Run("5", func(t *testing.T) {
+		tree.Insert(5, 5)
+
+		leafB := newLeafFrom(nil, 3, 4, 5)
+		leafA := newLeafFrom(leafB, 1, 2)
+		ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB))
 	})
 
 	t.Run("6", func(t *testing.T) {
-		leafC := genericLeafFrom(nil, 4, 5, 6)
-		leafB := genericLeafFrom(leafC, 2, 3)
-		leafA := genericLeafFrom(leafB, 0, 1)
-
 		tree.Insert(6, 6)
-		ensureGenericNode(t, tree.root, genericInternalFrom(leafA, leafB, leafC))
+
+		leafB := newLeafFrom(nil, 3, 4, 5, 6)
+		leafA := newLeafFrom(leafB, 1, 2)
+		ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB))
 	})
+
+	t.Run("7", func(t *testing.T) {
+		tree.Insert(7, 7)
+
+		leafC := newLeafFrom(nil, 5, 6, 7)
+		leafB := newLeafFrom(leafC, 3, 4)
+		leafA := newLeafFrom(leafB, 1, 2)
+		ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB, leafC))
+	})
+
+	t.Run("8", func(t *testing.T) {
+		tree.Insert(8, 8)
+
+		leafC := newLeafFrom(nil, 5, 6, 7, 8)
+		leafB := newLeafFrom(leafC, 3, 4)
+		leafA := newLeafFrom(leafB, 1, 2)
+		ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB, leafC))
+	})
+
+	t.Run("9", func(t *testing.T) {
+		tree.Insert(9, 9)
+
+		leafD := newLeafFrom(nil, 7, 8, 9)
+		leafC := newLeafFrom(leafD, 5, 6)
+		leafB := newLeafFrom(leafC, 3, 4)
+		leafA := newLeafFrom(leafB, 1, 2)
+		ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB, leafC, leafD))
+	})
+
+	t.Run("10", func(t *testing.T) {
+		tree.Insert(10, 10)
+
+		// root -> internal A
+		// internal A -> internal B, internal C
+		// internal B -> leaf A, leaf B
+		// internal C -> leaf C, leaf D
+
+		leafD := newLeafFrom(nil, 7, 8, 9, 10)
+		leafC := newLeafFrom(leafD, 5, 6)
+		leafB := newLeafFrom(leafC, 3, 4)
+		leafA := newLeafFrom(leafB, 1, 2)
+
+		internalC := newInternalFrom(leafC, leafD)
+		internalB := newInternalFrom(leafA, leafB)
+		internalA := newInternalFrom(internalB, internalC)
+		ensureNodesMatch(t, tree.root, internalA)
+	})
+
+	t.Run("11", func(t *testing.T) {
+		tree.Insert(11, 11)
+
+		// root -> internal A
+		// internal A -> internal B, internal C
+		// internal B -> leaf A, leaf B
+		// internal C -> leaf C, leaf D, leaf E
+
+		leafE := newLeafFrom(nil, 9, 10, 11)
+		leafD := newLeafFrom(leafE, 7, 8)
+		leafC := newLeafFrom(leafD, 5, 6)
+		leafB := newLeafFrom(leafC, 3, 4)
+		leafA := newLeafFrom(leafB, 1, 2)
+
+		internalC := newInternalFrom(leafC, leafD, leafE)
+		internalB := newInternalFrom(leafA, leafB)
+		internalA := newInternalFrom(internalB, internalC)
+		ensureNodesMatch(t, tree.root, internalA)
+	})
+
+	t.Run("12", func(t *testing.T) {
+		tree.Insert(12, 12)
+
+		// root -> internal A
+		// internal A -> internal B, internal C
+		// internal B -> leaf A, leaf B
+		// internal C -> leaf C, leaf D, leaf E
+
+		leafE := newLeafFrom(nil, 9, 10, 11, 12)
+		leafD := newLeafFrom(leafE, 7, 8)
+		leafC := newLeafFrom(leafD, 5, 6)
+		leafB := newLeafFrom(leafC, 3, 4)
+		leafA := newLeafFrom(leafB, 1, 2)
+
+		internalC := newInternalFrom(leafC, leafD, leafE)
+		internalB := newInternalFrom(leafA, leafB)
+		internalA := newInternalFrom(internalB, internalC)
+		ensureNodesMatch(t, tree.root, internalA)
+	})
+
+	t.Run("13", func(t *testing.T) {
+		tree.Insert(13, 13)
+
+		// root -> internal A
+		// internal A -> internal B, internal C
+		// internal B -> leaf A, leaf B
+		// internal C -> leaf C, leaf D, leaf E, leaf F
+
+		leafF := newLeafFrom(nil, 11, 12, 13)
+		leafE := newLeafFrom(leafF, 9, 10)
+		leafD := newLeafFrom(leafE, 7, 8)
+		leafC := newLeafFrom(leafD, 5, 6)
+		leafB := newLeafFrom(leafC, 3, 4)
+		leafA := newLeafFrom(leafB, 1, 2)
+
+		internalC := newInternalFrom(leafC, leafD, leafE, leafF)
+		internalB := newInternalFrom(leafA, leafB)
+		internalA := newInternalFrom(internalB, internalC)
+		ensureNodesMatch(t, tree.root, internalA)
+	})
+
+	// t.Run("14", func(t *testing.T) {
+	// 	tree.Insert(14, 14)
+
+	// 	// root -> internal A
+	// 	// internal A -> internal B, internal C
+	// 	// internal B -> leaf A, leaf B
+	// 	// internal C -> leaf C, leaf D, leaf E, leaf F
+
+	// 	leafF := newLeafFrom(nil, 11, 12, 13, 14)
+	// 	leafE := newLeafFrom(leafF, 9, 10)
+	// 	leafD := newLeafFrom(leafE, 7, 8)
+	// 	leafC := newLeafFrom(leafD, 5, 6)
+	// 	leafB := newLeafFrom(leafC, 3, 4)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+
+	// 	internalC := newInternalFrom(leafC, leafD, leafE, leafF)
+	// 	internalB := newInternalFrom(leafA, leafB)
+	// 	internalA := newInternalFrom(internalB, internalC)
+	// 	ensureNodesMatch(t, tree.root, internalA)
+	// })
+
+	// t.Run("15", func(t *testing.T) {
+	// 	tree.Insert(15, 15)
+
+	// 	// root -> internal A
+	// 	// internal A -> internal B, internal C, internal D
+	// 	// internal B -> leaf A, leaf B
+	// 	// internal C -> leaf C, leaf D
+	// 	// internal D -> leaf E, leaf F, leaf G
+
+	// 	leafG := newLeafFrom(nil, 13, 14, 15)
+	// 	leafF := newLeafFrom(leafG, 11, 12)
+	// 	leafE := newLeafFrom(leafF, 9, 10)
+	// 	leafD := newLeafFrom(leafE, 7, 8)
+	// 	leafC := newLeafFrom(leafD, 5, 6)
+	// 	leafB := newLeafFrom(leafC, 3, 4)
+	// 	leafA := newLeafFrom(leafB, 1, 2)
+
+	// 	internalD := newInternalFrom(leafE, leafF, leafG)
+	// 	internalC := newInternalFrom(leafC, leafD)
+	// 	internalB := newInternalFrom(leafA, leafB)
+	// 	internalA := newInternalFrom(internalB, internalC, internalD)
+	// 	ensureNodesMatch(t, tree.root, internalA)
+	// })
 }
 
 func TestGenericLeafNodeMaybeSplit(t *testing.T) {
-	gimme := func() (*genericLeafNode[int], *genericLeafNode[int]) {
-		leafB := genericLeafFrom(nil, 21, 22, 23, 24)
-		leafA := genericLeafFrom(leafB, 11, 12, 13, 14)
+	gimme := func() (*leafNode[int], *leafNode[int]) {
+		leafB := newLeafFrom(nil, 21, 22, 23, 24)
+		leafA := newLeafFrom(leafB, 11, 12, 13, 14)
 		return leafA, leafB
 	}
 
@@ -442,8 +897,8 @@ func TestGenericLeafNodeMaybeSplit(t *testing.T) {
 	t.Run("splits non-right edge when full", func(t *testing.T) {
 		leafA, leafB := gimme()
 		leftNode, rightNode := leafA.maybeSplit(4)
-		ensureGenericNode(t, leftNode, genericLeafFrom(rightNode.(*genericLeafNode[int]), 11, 12))
-		ensureGenericNode(t, rightNode, genericLeafFrom(leafB, 13, 14))
+		ensureNodesMatch(t, leftNode, newLeafFrom(rightNode.(*leafNode[int]), 11, 12))
+		ensureNodesMatch(t, rightNode, newLeafFrom(leafB, 13, 14))
 	})
 	t.Run("splits right edge when full", func(t *testing.T) {
 		leafA, leafB := gimme()
@@ -451,8 +906,8 @@ func TestGenericLeafNodeMaybeSplit(t *testing.T) {
 		if got, want := leafA.Next, leftNode; got != want {
 			t.Fatalf("GOT: %v; WANT: %v", got, want)
 		}
-		ensureGenericNode(t, leftNode, genericLeafFrom(rightNode.(*genericLeafNode[int]), 21, 22))
-		ensureGenericNode(t, rightNode, genericLeafFrom(nil, 23, 24))
+		ensureNodesMatch(t, leftNode, newLeafFrom(rightNode.(*leafNode[int]), 21, 22))
+		ensureNodesMatch(t, rightNode, newLeafFrom(nil, 23, 24))
 	})
 }
 
@@ -460,51 +915,51 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 	t.Run("when fewer than order elements", func(t *testing.T) {
 		t.Run("when empty", func(t *testing.T) {
 			d, _ := NewGenericTree[int](4)
-			nl, ok := d.root.(*genericLeafNode[int])
+			nl, ok := d.root.(*leafNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
 			d.Insert(30, 30)
-			ensureGenericLeaf(t, nl, genericLeafFrom(nil, 30))
+			ensureLeafNodesMatch(t, nl, newLeafFrom(nil, 30))
 		})
 		t.Run("when less than first runt", func(t *testing.T) {
 			d, _ := NewGenericTree[int](4)
-			nl, ok := d.root.(*genericLeafNode[int])
+			nl, ok := d.root.(*leafNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
 			d.Insert(30, 30)
 			d.Insert(10, 10)
-			ensureGenericNode(t, nl, genericLeafFrom(nil, 10, 30))
+			ensureNodesMatch(t, nl, newLeafFrom(nil, 10, 30))
 		})
 		t.Run("when update value", func(t *testing.T) {
 			d, _ := NewGenericTree[int](4)
-			nl, ok := d.root.(*genericLeafNode[int])
+			nl, ok := d.root.(*leafNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
 			d.Insert(30, 30)
 			d.Insert(10, 10)
 			d.Insert(30, 333)
-			ensureGenericNode(t, nl, &genericLeafNode[int]{
+			ensureNodesMatch(t, nl, &leafNode[int]{
 				Runts:  []int{10, 30},
 				Values: []any{10, 333},
 			})
 		})
 		t.Run("when between first and final runt", func(t *testing.T) {
 			d, _ := NewGenericTree[int](4)
-			nl, ok := d.root.(*genericLeafNode[int])
+			nl, ok := d.root.(*leafNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
 			d.Insert(30, 30)
 			d.Insert(10, 10)
 			d.Insert(20, 20)
-			ensureGenericNode(t, nl, genericLeafFrom(nil, 10, 20, 30))
+			ensureNodesMatch(t, nl, newLeafFrom(nil, 10, 20, 30))
 		})
 		t.Run("when after final runt", func(t *testing.T) {
 			d, _ := NewGenericTree[int](4)
-			nl, ok := d.root.(*genericLeafNode[int])
+			nl, ok := d.root.(*leafNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
@@ -512,7 +967,7 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			d.Insert(10, 10)
 			d.Insert(20, 20)
 			d.Insert(40, 40)
-			ensureGenericNode(t, nl, genericLeafFrom(nil, 10, 20, 30, 40))
+			ensureNodesMatch(t, nl, newLeafFrom(nil, 10, 20, 30, 40))
 		})
 	})
 
@@ -528,7 +983,7 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			d := gimme()
 			d.Insert(0, 0)
 
-			root, ok := d.root.(*genericInternalNode[int])
+			root, ok := d.root.(*internalNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -543,17 +998,17 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			if got, want := root.Runts[0], 0; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericNode(t, root.Children[0], genericLeafFrom(root.Children[1].(*genericLeafNode[int]), 0, 10, 20))
+			ensureNodesMatch(t, root.Children[0], newLeafFrom(root.Children[1].(*leafNode[int]), 0, 10, 20))
 
 			if got, want := root.Runts[1], 30; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericNode(t, root.Children[1], genericLeafFrom(nil, 30, 40))
+			ensureNodesMatch(t, root.Children[1], newLeafFrom(nil, 30, 40))
 		})
 		t.Run("when new key is in middle", func(t *testing.T) {
 			d := gimme()
 			d.Insert(25, 25)
-			root, ok := d.root.(*genericInternalNode[int])
+			root, ok := d.root.(*internalNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -568,17 +1023,17 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			if got, want := root.Runts[0], 10; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericNode(t, root.Children[0], genericLeafFrom(root.Children[1].(*genericLeafNode[int]), 10, 20, 25))
+			ensureNodesMatch(t, root.Children[0], newLeafFrom(root.Children[1].(*leafNode[int]), 10, 20, 25))
 
 			if got, want := root.Runts[1], 30; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericNode(t, root.Children[1], genericLeafFrom(nil, 30, 40))
+			ensureNodesMatch(t, root.Children[1], newLeafFrom(nil, 30, 40))
 		})
 		t.Run("when new key will be final node in right leaf", func(t *testing.T) {
 			d := gimme()
 			d.Insert(50, 50)
-			root, ok := d.root.(*genericInternalNode[int])
+			root, ok := d.root.(*internalNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -593,12 +1048,12 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			if got, want := root.Runts[0], 10; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericNode(t, root.Children[0], genericLeafFrom(root.Children[1].(*genericLeafNode[int]), 10, 20))
+			ensureNodesMatch(t, root.Children[0], newLeafFrom(root.Children[1].(*leafNode[int]), 10, 20))
 
 			if got, want := root.Runts[1], 30; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericNode(t, root.Children[1], genericLeafFrom(nil, 30, 40, 50))
+			ensureNodesMatch(t, root.Children[1], newLeafFrom(nil, 30, 40, 50))
 		})
 	})
 }
@@ -821,7 +1276,7 @@ func TestGenericTreeUpdate(t *testing.T) {
 func TestGenericLeafNodeDelete(t *testing.T) {
 	t.Run("still big enough", func(t *testing.T) {
 		t.Run("key is missing", func(t *testing.T) {
-			l := &genericLeafNode[int]{
+			l := &leafNode[int]{
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
@@ -829,13 +1284,13 @@ func TestGenericLeafNodeDelete(t *testing.T) {
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericNode(t, l, &genericLeafNode[int]{
+			ensureNodesMatch(t, l, &leafNode[int]{
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			})
 		})
 		t.Run("key is first", func(t *testing.T) {
-			l := &genericLeafNode[int]{
+			l := &leafNode[int]{
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
@@ -843,13 +1298,13 @@ func TestGenericLeafNodeDelete(t *testing.T) {
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericNode(t, l, &genericLeafNode[int]{
+			ensureNodesMatch(t, l, &leafNode[int]{
 				Runts:  []int{21, 31},
 				Values: []any{21, 31},
 			})
 		})
 		t.Run("key is middle", func(t *testing.T) {
-			l := &genericLeafNode[int]{
+			l := &leafNode[int]{
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
@@ -857,13 +1312,13 @@ func TestGenericLeafNodeDelete(t *testing.T) {
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericNode(t, l, &genericLeafNode[int]{
+			ensureNodesMatch(t, l, &leafNode[int]{
 				Runts:  []int{11, 31},
 				Values: []any{11, 31},
 			})
 		})
 		t.Run("key is last", func(t *testing.T) {
-			l := &genericLeafNode[int]{
+			l := &leafNode[int]{
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
@@ -871,92 +1326,92 @@ func TestGenericLeafNodeDelete(t *testing.T) {
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericNode(t, l, &genericLeafNode[int]{
+			ensureNodesMatch(t, l, &leafNode[int]{
 				Runts:  []int{11, 21},
 				Values: []any{11, 21},
 			})
 		})
 	})
 	t.Run("will be too small", func(t *testing.T) {
-		l := genericLeafFrom(nil, 11, 21, 31, 41)
+		l := newLeafFrom(nil, 11, 21, 31, 41)
 		bigEnough := l.deleteKey(4, 21)
 		if got, want := bigEnough, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		ensureGenericNode(t, l, genericLeafFrom(nil, 11, 31, 41))
+		ensureNodesMatch(t, l, newLeafFrom(nil, 11, 31, 41))
 	})
 }
 
 func TestGenericLeafNodeAdoptFrom(t *testing.T) {
 	t.Run("left", func(t *testing.T) {
-		r := genericLeafFrom(nil, 5, 6, 7)
-		l := genericLeafFrom(r, 0, 1, 2, 3, 4)
+		r := newLeafFrom(nil, 5, 6, 7)
+		l := newLeafFrom(r, 0, 1, 2, 3, 4)
 
 		r.adoptFromLeft(l)
 
-		ensureGenericNode(t, l, genericLeafFrom(r, 0, 1, 2, 3))
-		ensureGenericNode(t, r, genericLeafFrom(nil, 4, 5, 6, 7))
+		ensureNodesMatch(t, l, newLeafFrom(r, 0, 1, 2, 3))
+		ensureNodesMatch(t, r, newLeafFrom(nil, 4, 5, 6, 7))
 	})
 	t.Run("right", func(t *testing.T) {
-		r := genericLeafFrom(nil, 3, 4, 5, 6, 7)
-		l := genericLeafFrom(r, 0, 1, 2)
+		r := newLeafFrom(nil, 3, 4, 5, 6, 7)
+		l := newLeafFrom(r, 0, 1, 2)
 
 		l.adoptFromRight(r)
 
-		ensureGenericNode(t, l, genericLeafFrom(r, 0, 1, 2, 3))
-		ensureGenericNode(t, r, genericLeafFrom(nil, 4, 5, 6, 7))
+		ensureNodesMatch(t, l, newLeafFrom(r, 0, 1, 2, 3))
+		ensureNodesMatch(t, r, newLeafFrom(nil, 4, 5, 6, 7))
 	})
 }
 
 func TestGenericInternalNodeAdoptFrom(t *testing.T) {
 	t.Run("left", func(t *testing.T) {
-		leafI := genericLeafFrom(nil, 90, 92, 94, 96, 98)
-		leafH := genericLeafFrom(leafI, 80, 82, 84, 86, 88)
-		leafG := genericLeafFrom(leafH, 70, 72, 74, 76, 78)
-		leafF := genericLeafFrom(leafG, 60, 62, 64, 66, 68)
-		leafE := genericLeafFrom(leafF, 50, 52, 54, 56, 58)
-		leafD := genericLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := genericLeafFrom(leafD, 30, 32, 34, 36, 38)
-		leafB := genericLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := genericLeafFrom(leafB, 10, 12, 14, 16, 18)
+		leafI := newLeafFrom(nil, 90, 92, 94, 96, 98)
+		leafH := newLeafFrom(leafI, 80, 82, 84, 86, 88)
+		leafG := newLeafFrom(leafH, 70, 72, 74, 76, 78)
+		leafF := newLeafFrom(leafG, 60, 62, 64, 66, 68)
+		leafE := newLeafFrom(leafF, 50, 52, 54, 56, 58)
+		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
+		leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
+		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
+		leafA := newLeafFrom(leafB, 10, 12, 14, 16, 18)
 
-		left := genericInternalFrom(leafA, leafB, leafC, leafD, leafE, leafF)
-		right := genericInternalFrom(leafG, leafH, leafI)
+		left := newInternalFrom(leafA, leafB, leafC, leafD, leafE, leafF)
+		right := newInternalFrom(leafG, leafH, leafI)
 
 		right.adoptFromLeft(left)
 
-		ensureGenericInternal(t, left, genericInternalFrom(leafA, leafB, leafC, leafD, leafE))
-		ensureGenericInternal(t, right, genericInternalFrom(leafF, leafG, leafH, leafI))
+		ensureInternalNodesMatch(t, left, newInternalFrom(leafA, leafB, leafC, leafD, leafE))
+		ensureInternalNodesMatch(t, right, newInternalFrom(leafF, leafG, leafH, leafI))
 	})
 	t.Run("right", func(t *testing.T) {
-		leafI := genericLeafFrom(nil, 90, 92, 94, 96, 98)
-		leafH := genericLeafFrom(leafI, 80, 82, 84, 86, 88)
-		leafG := genericLeafFrom(leafH, 70, 72, 74, 76, 78)
-		leafF := genericLeafFrom(leafG, 60, 62, 64, 66, 68)
-		leafE := genericLeafFrom(leafF, 50, 52, 54, 56, 58)
-		leafD := genericLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := genericLeafFrom(leafD, 30, 32, 34, 36, 38)
-		leafB := genericLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := genericLeafFrom(leafB, 10, 12, 14, 16, 18)
+		leafI := newLeafFrom(nil, 90, 92, 94, 96, 98)
+		leafH := newLeafFrom(leafI, 80, 82, 84, 86, 88)
+		leafG := newLeafFrom(leafH, 70, 72, 74, 76, 78)
+		leafF := newLeafFrom(leafG, 60, 62, 64, 66, 68)
+		leafE := newLeafFrom(leafF, 50, 52, 54, 56, 58)
+		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
+		leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
+		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
+		leafA := newLeafFrom(leafB, 10, 12, 14, 16, 18)
 
-		left := genericInternalFrom(leafA, leafB, leafC)
-		right := genericInternalFrom(leafD, leafE, leafF, leafG, leafH, leafI)
+		left := newInternalFrom(leafA, leafB, leafC)
+		right := newInternalFrom(leafD, leafE, leafF, leafG, leafH, leafI)
 
 		left.adoptFromRight(right)
 
-		ensureGenericInternal(t, left, genericInternalFrom(leafA, leafB, leafC, leafD))
-		ensureGenericInternal(t, right, genericInternalFrom(leafE, leafF, leafG, leafH, leafI))
+		ensureInternalNodesMatch(t, left, newInternalFrom(leafA, leafB, leafC, leafD))
+		ensureInternalNodesMatch(t, right, newInternalFrom(leafE, leafF, leafG, leafH, leafI))
 	})
 }
 
 func TestGenericLeafNodeMergeWithRight(t *testing.T) {
-	leafC := genericLeafFrom(nil, 6, 7, 8, 9)
-	leafB := genericLeafFrom(leafC, 3, 4, 5)
-	leafA := genericLeafFrom(leafB, 0, 1, 2)
+	leafC := newLeafFrom(nil, 6, 7, 8, 9)
+	leafB := newLeafFrom(leafC, 3, 4, 5)
+	leafA := newLeafFrom(leafB, 0, 1, 2)
 
 	leafA.absorbRight(leafB)
 
-	ensureGenericNode(t, leafA, genericLeafFrom(leafC, 0, 1, 2, 3, 4, 5))
+	ensureNodesMatch(t, leafA, newLeafFrom(leafC, 0, 1, 2, 3, 4, 5))
 
 	if got, want := len(leafB.Runts), 0; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
@@ -964,28 +1419,28 @@ func TestGenericLeafNodeMergeWithRight(t *testing.T) {
 	if got, want := len(leafB.Values), 0; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
-	if got, want := leafB.Next, (*genericLeafNode[int])(nil); got != want {
+	if got, want := leafB.Next, (*leafNode[int])(nil); got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
 }
 
 func TestGenericInternalNodeMergeWithRight(t *testing.T) {
-	leafI := genericLeafFrom(nil, 90, 92, 94, 96, 98)
-	leafH := genericLeafFrom(leafI, 80, 82, 84, 86, 88)
-	leafG := genericLeafFrom(leafH, 70, 72, 74, 76, 78)
-	leafF := genericLeafFrom(leafG, 60, 62, 64, 66, 68)
-	leafE := genericLeafFrom(leafF, 50, 52, 54, 56, 58)
-	leafD := genericLeafFrom(leafE, 40, 42, 44, 46, 48)
-	leafC := genericLeafFrom(leafD, 30, 32, 34, 36, 38)
-	leafB := genericLeafFrom(leafC, 20, 22, 24, 26, 28)
-	leafA := genericLeafFrom(leafB, 10, 12, 14, 16, 18)
+	leafI := newLeafFrom(nil, 90, 92, 94, 96, 98)
+	leafH := newLeafFrom(leafI, 80, 82, 84, 86, 88)
+	leafG := newLeafFrom(leafH, 70, 72, 74, 76, 78)
+	leafF := newLeafFrom(leafG, 60, 62, 64, 66, 68)
+	leafE := newLeafFrom(leafF, 50, 52, 54, 56, 58)
+	leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
+	leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
+	leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
+	leafA := newLeafFrom(leafB, 10, 12, 14, 16, 18)
 
-	left := genericInternalFrom(leafA, leafB, leafC)
-	right := genericInternalFrom(leafD, leafE, leafF, leafG)
+	left := newInternalFrom(leafA, leafB, leafC)
+	right := newInternalFrom(leafD, leafE, leafF, leafG)
 
 	left.absorbRight(right)
 
-	ensureGenericInternal(t, left, genericInternalFrom(leafA, leafB, leafC, leafD, leafE, leafF, leafG))
+	ensureInternalNodesMatch(t, left, newInternalFrom(leafA, leafB, leafC, leafD, leafE, leafF, leafG))
 
 	if got, want := len(right.Runts), 0; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
@@ -997,105 +1452,117 @@ func TestGenericInternalNodeMergeWithRight(t *testing.T) {
 
 func TestGenericInternalNodeDeleteKey(t *testing.T) {
 	t.Run("not too small", func(t *testing.T) {
-		leafE := genericLeafFrom(nil, 50, 52, 54, 56, 58)
-		leafD := genericLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := genericLeafFrom(leafD, 30, 32, 34, 36, 38)
-		leafB := genericLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := genericLeafFrom(leafB, 10, 12, 14, 16, 18)
+		leafE := newLeafFrom(nil, 50, 52, 54, 56, 58)
+		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
+		leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
+		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
+		leafA := newLeafFrom(leafB, 10, 12, 14, 16, 18)
 
-		child := genericInternalFrom(leafA, leafB, leafC, leafD)
+		internal := newInternalFrom(leafA, leafB, leafC, leafD)
 
-		if got, want := child.deleteKey(4, 22), true; got != want {
+		bigEnough := internal.deleteKey(4, 22)
+		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 	})
-	t.Run("child absorbs right when no left and skinny right", func(t *testing.T) {
-		t.Run("child not too small", func(t *testing.T) {
-			leafE := genericLeafFrom(nil, 50, 52, 54, 56, 58)
-			leafD := genericLeafFrom(leafE, 40, 42, 44, 46, 48)
-			leafC := genericLeafFrom(leafD, 30, 32, 34, 36, 38)
-			leafB := genericLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := genericLeafFrom(leafB, 10, 12, 14, 16)
+	t.Run("internal node absorbs right when no left and skinny right", func(t *testing.T) {
+		t.Run("internal node not too small", func(t *testing.T) {
+			leafE := newLeafFrom(nil, 50, 52, 54, 56, 58)
+			leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
+			leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
+			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
+			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
 
-			child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
+			internal := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
-			bigEnough := child.deleteKey(4, 12)
+			// NOTE: When leaf A starts with 4 elements, and test deletes 12
+			// from it, it will no longer have enough elements, and its
+			// remaining elements will be moved to other nodes. However, the
+			// internal node at the top will still have enough elements, and
+			// its return value will be true.
+			bigEnough := internal.deleteKey(4, 12)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			ensureGenericLeaf(t, leafA, genericLeafFrom(leafC, 10, 14, 16, 20, 22, 24, 26))
+			// Leaf A will adopt all elements from leaf B, and its Next field
+			// will point to leaf C.
+			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafC, 10, 14, 16, 20, 22, 24, 26))
+
+			// Leaf B will have no remaining elements.
 			if got, want := len(leafB.Runts), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			if got, want := len(leafB.Values), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericLeaf(t, leafC, genericLeafFrom(leafD, 30, 32, 34, 36, 38))
-			ensureGenericLeaf(t, leafD, genericLeafFrom(leafE, 40, 42, 44, 46, 48))
-			ensureGenericLeaf(t, leafE, genericLeafFrom(nil, 50, 52, 54, 56, 58))
-		})
-		t.Run("child too small", func(t *testing.T) {
-			leafD := genericLeafFrom(nil, 40, 42, 44, 46, 48)
-			leafC := genericLeafFrom(leafD, 30, 32, 34, 36, 38)
-			leafB := genericLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := genericLeafFrom(leafB, 10, 12, 14, 16)
 
-			child := genericInternalFrom(leafA, leafB, leafC, leafD)
+			// The other leaf nodes should be untouched.
+			ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36, 38))
+			ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46, 48))
+			ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 50, 52, 54, 56, 58))
+		})
+		t.Run("internal node too small", func(t *testing.T) {
+			leafD := newLeafFrom(nil, 40, 42, 44, 46, 48)
+			leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
+			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
+			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
+
+			child := newInternalFrom(leafA, leafB, leafC, leafD)
 
 			bigEnough := child.deleteKey(4, 12)
 			if got, want := bigEnough, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			ensureGenericLeaf(t, leafA, genericLeafFrom(leafC, 10, 14, 16, 20, 22, 24, 26))
+			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafC, 10, 14, 16, 20, 22, 24, 26))
 			if got, want := len(leafB.Runts), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			if got, want := len(leafB.Values), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericLeaf(t, leafC, genericLeafFrom(leafD, 30, 32, 34, 36, 38))
-			ensureGenericLeaf(t, leafD, genericLeafFrom(nil, 40, 42, 44, 46, 48))
+			ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36, 38))
+			ensureLeafNodesMatch(t, leafD, newLeafFrom(nil, 40, 42, 44, 46, 48))
 		})
 	})
 	t.Run("child adopts from right when no left and fat right", func(t *testing.T) {
-		leafE := genericLeafFrom(nil, 50, 52, 54, 56, 58)
-		leafD := genericLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := genericLeafFrom(leafD, 30, 32, 34, 36, 38)
-		leafB := genericLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := genericLeafFrom(leafB, 10, 12, 14, 16)
+		leafE := newLeafFrom(nil, 50, 52, 54, 56, 58)
+		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
+		leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
+		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
+		leafA := newLeafFrom(leafB, 10, 12, 14, 16)
 
-		child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
+		child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
 		bigEnough := child.deleteKey(4, 12)
 		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
-		ensureGenericLeaf(t, leafA, genericLeafFrom(leafB, 10, 14, 16, 20))
-		ensureGenericLeaf(t, leafB, genericLeafFrom(leafC, 22, 24, 26, 28))
-		ensureGenericLeaf(t, leafC, genericLeafFrom(leafD, 30, 32, 34, 36, 38))
-		ensureGenericLeaf(t, leafD, genericLeafFrom(leafE, 40, 42, 44, 46, 48))
-		ensureGenericLeaf(t, leafE, genericLeafFrom(nil, 50, 52, 54, 56, 58))
+		ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 14, 16, 20))
+		ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 22, 24, 26, 28))
+		ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36, 38))
+		ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46, 48))
+		ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 50, 52, 54, 56, 58))
 	})
 	t.Run("left absorbs child when skinny left and no right", func(t *testing.T) {
 		t.Run("too small", func(t *testing.T) {
-			leafD := genericLeafFrom(nil, 40, 42, 44, 46)
-			leafC := genericLeafFrom(leafD, 30, 32, 34, 36)
-			leafB := genericLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := genericLeafFrom(leafB, 10, 12, 14, 16)
+			leafD := newLeafFrom(nil, 40, 42, 44, 46)
+			leafC := newLeafFrom(leafD, 30, 32, 34, 36)
+			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
+			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
 
-			child := genericInternalFrom(leafA, leafB, leafC, leafD)
+			child := newInternalFrom(leafA, leafB, leafC, leafD)
 
 			bigEnough := child.deleteKey(4, 42)
 			if got, want := bigEnough, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			ensureGenericLeaf(t, leafA, genericLeafFrom(leafB, 10, 12, 14, 16))
-			ensureGenericLeaf(t, leafB, genericLeafFrom(leafC, 20, 22, 24, 26))
-			ensureGenericLeaf(t, leafC, genericLeafFrom(nil, 30, 32, 34, 36, 40, 44, 46))
+			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16))
+			ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 22, 24, 26))
+			ensureLeafNodesMatch(t, leafC, newLeafFrom(nil, 30, 32, 34, 36, 40, 44, 46))
 			if got, want := len(leafD.Runts), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -1104,23 +1571,23 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 			}
 		})
 		t.Run("not too small", func(t *testing.T) {
-			leafE := genericLeafFrom(nil, 50, 52, 54, 56)
-			leafD := genericLeafFrom(leafE, 40, 42, 44, 46)
-			leafC := genericLeafFrom(leafD, 30, 32, 34, 36)
-			leafB := genericLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := genericLeafFrom(leafB, 10, 12, 14, 16)
+			leafE := newLeafFrom(nil, 50, 52, 54, 56)
+			leafD := newLeafFrom(leafE, 40, 42, 44, 46)
+			leafC := newLeafFrom(leafD, 30, 32, 34, 36)
+			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
+			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
 
-			child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
+			child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
 			bigEnough := child.deleteKey(4, 52)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			ensureGenericLeaf(t, leafA, genericLeafFrom(leafB, 10, 12, 14, 16))
-			ensureGenericLeaf(t, leafB, genericLeafFrom(leafC, 20, 22, 24, 26))
-			ensureGenericLeaf(t, leafC, genericLeafFrom(leafD, 30, 32, 34, 36))
-			ensureGenericLeaf(t, leafD, genericLeafFrom(nil, 40, 42, 44, 46, 50, 54, 56))
+			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16))
+			ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 22, 24, 26))
+			ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36))
+			ensureLeafNodesMatch(t, leafD, newLeafFrom(nil, 40, 42, 44, 46, 50, 54, 56))
 			if got, want := len(leafE.Runts), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -1131,130 +1598,130 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 	})
 	t.Run("left absorbs child when skinny left and skinny right", func(t *testing.T) {
 		t.Run("too small", func(t *testing.T) {
-			leafC := genericLeafFrom(nil, 30, 32, 34, 36)
-			leafB := genericLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := genericLeafFrom(leafB, 10, 12, 14, 16)
+			leafC := newLeafFrom(nil, 30, 32, 34, 36)
+			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
+			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
 
-			child := genericInternalFrom(leafA, leafB, leafC)
+			child := newInternalFrom(leafA, leafB, leafC)
 
 			bigEnough := child.deleteKey(4, 22)
 			if got, want := bigEnough, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			ensureGenericLeaf(t, leafA, genericLeafFrom(leafC, 10, 12, 14, 16, 20, 24, 26))
+			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafC, 10, 12, 14, 16, 20, 24, 26))
 			if got, want := len(leafB.Runts), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			if got, want := len(leafB.Values), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericLeaf(t, leafC, genericLeafFrom(nil, 30, 32, 34, 36))
+			ensureLeafNodesMatch(t, leafC, newLeafFrom(nil, 30, 32, 34, 36))
 		})
 		t.Run("not too small", func(t *testing.T) {
-			leafE := genericLeafFrom(nil, 50, 52, 54, 56)
-			leafD := genericLeafFrom(leafE, 40, 42, 44, 46)
-			leafC := genericLeafFrom(leafD, 30, 32, 34, 36)
-			leafB := genericLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := genericLeafFrom(leafB, 10, 12, 14, 16)
+			leafE := newLeafFrom(nil, 50, 52, 54, 56)
+			leafD := newLeafFrom(leafE, 40, 42, 44, 46)
+			leafC := newLeafFrom(leafD, 30, 32, 34, 36)
+			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
+			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
 
-			child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
+			child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
 			bigEnough := child.deleteKey(4, 22)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			ensureGenericLeaf(t, leafA, genericLeafFrom(leafC, 10, 12, 14, 16, 20, 24, 26))
+			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafC, 10, 12, 14, 16, 20, 24, 26))
 			if got, want := len(leafB.Runts), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			if got, want := len(leafB.Values), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureGenericLeaf(t, leafC, genericLeafFrom(leafD, 30, 32, 34, 36))
-			ensureGenericLeaf(t, leafD, genericLeafFrom(leafE, 40, 42, 44, 46))
+			ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36))
+			ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46))
 		})
 	})
 	t.Run("child adopts from right when skinny left and fat right", func(t *testing.T) {
-		leafE := genericLeafFrom(nil, 50, 52, 54, 56, 58)
-		leafD := genericLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := genericLeafFrom(leafD, 30, 32, 34, 36, 38)
-		leafB := genericLeafFrom(leafC, 20, 22, 24, 26)
-		leafA := genericLeafFrom(leafB, 10, 12, 14, 16)
+		leafE := newLeafFrom(nil, 50, 52, 54, 56, 58)
+		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
+		leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
+		leafB := newLeafFrom(leafC, 20, 22, 24, 26)
+		leafA := newLeafFrom(leafB, 10, 12, 14, 16)
 
-		child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
+		child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
 		bigEnough := child.deleteKey(4, 22)
 		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
-		ensureGenericLeaf(t, leafA, genericLeafFrom(leafB, 10, 12, 14, 16))
-		ensureGenericLeaf(t, leafB, genericLeafFrom(leafC, 20, 24, 26, 30))
-		ensureGenericLeaf(t, leafC, genericLeafFrom(leafD, 32, 34, 36, 38))
-		ensureGenericLeaf(t, leafD, genericLeafFrom(leafE, 40, 42, 44, 46, 48))
-		ensureGenericLeaf(t, leafE, genericLeafFrom(nil, 50, 52, 54, 56, 58))
+		ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16))
+		ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 24, 26, 30))
+		ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 32, 34, 36, 38))
+		ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46, 48))
+		ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 50, 52, 54, 56, 58))
 	})
 	t.Run("child adopts from left when fat left and no right", func(t *testing.T) {
-		leafE := genericLeafFrom(nil, 50, 52, 54, 56)
-		leafD := genericLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := genericLeafFrom(leafD, 30, 32, 34, 36)
-		leafB := genericLeafFrom(leafC, 20, 22, 24, 26)
-		leafA := genericLeafFrom(leafB, 10, 12, 14, 16)
+		leafE := newLeafFrom(nil, 50, 52, 54, 56)
+		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
+		leafC := newLeafFrom(leafD, 30, 32, 34, 36)
+		leafB := newLeafFrom(leafC, 20, 22, 24, 26)
+		leafA := newLeafFrom(leafB, 10, 12, 14, 16)
 
-		child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
+		child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
 		bigEnough := child.deleteKey(4, 52)
 		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
-		ensureGenericLeaf(t, leafA, genericLeafFrom(leafB, 10, 12, 14, 16))
-		ensureGenericLeaf(t, leafB, genericLeafFrom(leafC, 20, 22, 24, 26))
-		ensureGenericLeaf(t, leafC, genericLeafFrom(leafD, 30, 32, 34, 36))
-		ensureGenericLeaf(t, leafD, genericLeafFrom(leafE, 40, 42, 44, 46))
-		ensureGenericLeaf(t, leafE, genericLeafFrom(nil, 48, 50, 54, 56))
+		ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16))
+		ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 22, 24, 26))
+		ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36))
+		ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46))
+		ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 48, 50, 54, 56))
 	})
 	t.Run("child adopts from left when fat left and skinny right", func(t *testing.T) {
-		leafE := genericLeafFrom(nil, 50, 52, 54, 56)
-		leafD := genericLeafFrom(leafE, 40, 42, 44, 46)
-		leafC := genericLeafFrom(leafD, 30, 32, 34, 36)
-		leafB := genericLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := genericLeafFrom(leafB, 10, 12, 14, 16)
+		leafE := newLeafFrom(nil, 50, 52, 54, 56)
+		leafD := newLeafFrom(leafE, 40, 42, 44, 46)
+		leafC := newLeafFrom(leafD, 30, 32, 34, 36)
+		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
+		leafA := newLeafFrom(leafB, 10, 12, 14, 16)
 
-		child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
+		child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
 		bigEnough := child.deleteKey(4, 32)
 		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
-		ensureGenericLeaf(t, leafA, genericLeafFrom(leafB, 10, 12, 14, 16))
-		ensureGenericLeaf(t, leafB, genericLeafFrom(leafC, 20, 22, 24, 26))
-		ensureGenericLeaf(t, leafC, genericLeafFrom(leafD, 28, 30, 34, 36))
-		ensureGenericLeaf(t, leafD, genericLeafFrom(leafE, 40, 42, 44, 46))
-		ensureGenericLeaf(t, leafE, genericLeafFrom(nil, 50, 52, 54, 56))
+		ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16))
+		ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 22, 24, 26))
+		ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 28, 30, 34, 36))
+		ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46))
+		ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 50, 52, 54, 56))
 	})
 	t.Run("child adopts from right when fat left and fat right", func(t *testing.T) {
-		leafE := genericLeafFrom(nil, 50, 52, 54, 56, 58)
-		leafD := genericLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := genericLeafFrom(leafD, 30, 32, 34, 36)
-		leafB := genericLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := genericLeafFrom(leafB, 10, 12, 14, 16, 18)
+		leafE := newLeafFrom(nil, 50, 52, 54, 56, 58)
+		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
+		leafC := newLeafFrom(leafD, 30, 32, 34, 36)
+		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
+		leafA := newLeafFrom(leafB, 10, 12, 14, 16, 18)
 
-		child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
+		child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
 		bigEnough := child.deleteKey(4, 32)
 		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
-		ensureGenericLeaf(t, leafA, genericLeafFrom(leafB, 10, 12, 14, 16, 18))
-		ensureGenericLeaf(t, leafB, genericLeafFrom(leafC, 20, 22, 24, 26, 28))
-		ensureGenericLeaf(t, leafC, genericLeafFrom(leafD, 30, 34, 36, 40))
-		ensureGenericLeaf(t, leafD, genericLeafFrom(leafE, 42, 44, 46, 48))
-		ensureGenericLeaf(t, leafE, genericLeafFrom(nil, 50, 52, 54, 56, 58))
+		ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16, 18))
+		ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 22, 24, 26, 28))
+		ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 34, 36, 40))
+		ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 42, 44, 46, 48))
+		ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 50, 52, 54, 56, 58))
 	})
 }
 
