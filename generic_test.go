@@ -12,7 +12,7 @@ import (
 ////////////////////////////////////////
 
 func ensureInternalNodesMatch[K cmp.Ordered](t *testing.T, got, want *internalNode[K]) {
-	t.Helper()
+	// t.Helper()
 
 	if got == nil {
 		if want != nil {
@@ -24,11 +24,12 @@ func ensureInternalNodesMatch[K cmp.Ordered](t *testing.T, got, want *internalNo
 	}
 
 	t.Run("Runts", func(t *testing.T) {
-		t.Helper()
+		// t.Helper()
 		ensureSame(t, got.Runts, want.Runts)
 	})
 
 	t.Run("Children", func(t *testing.T) {
+		// t.Helper()
 		if g, w := len(got.Children), len(want.Children); g != w {
 			t.Errorf("length(Children) GOT: %v; WANT: %v", g, w)
 		}
@@ -39,7 +40,7 @@ func ensureInternalNodesMatch[K cmp.Ordered](t *testing.T, got, want *internalNo
 }
 
 func ensureLeafNodesMatch[K cmp.Ordered](t *testing.T, got, want *leafNode[K]) {
-	t.Helper()
+	// t.Helper()
 
 	if got == nil {
 		if want != nil {
@@ -51,36 +52,39 @@ func ensureLeafNodesMatch[K cmp.Ordered](t *testing.T, got, want *leafNode[K]) {
 	}
 
 	t.Run("Runts", func(t *testing.T) {
+		// t.Helper()
 		ensureSame(t, got.Runts, want.Runts)
 	})
 
 	t.Run("Values", func(t *testing.T) {
+		// t.Helper()
 		ensureSame(t, got.Values, want.Values)
 	})
 
 	t.Run("Next", func(t *testing.T) {
+		// t.Helper()
 		ensureLeafNodesMatch(t, got.Next, want.Next)
 	})
 }
 
 func ensureNodesMatch[K cmp.Ordered](t *testing.T, got, want node[K]) {
-	t.Helper()
+	// t.Helper()
 
 	switch e := want.(type) {
 	case *internalNode[K]:
 		a, ok := got.(*internalNode[K])
 		if !ok {
-			t.Errorf("GOT: %T; WANT: %T", got, want)
+			t.Errorf("GOT: %#v; WANT: %#v", got, want)
 		}
 		ensureInternalNodesMatch(t, a, e)
 	case *leafNode[K]:
 		a, ok := got.(*leafNode[K])
 		if !ok {
-			t.Errorf("GOT: %T; WANT: %T", got, want)
+			t.Errorf("GOT: %#v; WANT: %#v", got, want)
 		}
 		ensureLeafNodesMatch(t, a, e)
 	default:
-		t.Errorf("GOT: %T; WANT: node", got)
+		t.Errorf("GOT: %#v; WANT: node", got)
 	}
 }
 
@@ -476,32 +480,49 @@ func TestGenericInsertOrder2(t *testing.T) {
 		})
 
 		t.Run("structure", func(t *testing.T) {
-			// internalA
+			// root
 			//   |
-			//   + internalB
-			//   |   |
-			//   |   + leafA
-			//   |       |
-			//   |       + 1
-			//   |
-			//   + internalC
+			//   + leaf alfa
 			//       |
-			//       + internalD
+			//       + 1
+
+			// root
+			//   |
+			//   + leaf alfa
+			//       |
+			//       + 1
+			//       + 2
+
+			// root
+			//   |
+			//   + internal charlie
+			//       |
+			//       + leaf alfa
+			//           |
+			//           + 1
+			//       |
+			//       + leaf bravo
+			//           |
+			//           + 2
+			//           + 3
+
+			// root
+			//   |
+			//   + internal echo
+			//       |
+			//       + internal charlie
 			//       |   |
-			//       |   + leafB
+			//       |   + leaf alfa
+			//       |       |
+			//       |       + 1
+			//       |
+			//       + internal delta
+			//       |   |
+			//       |   + leaf bravo
 			//       |       |
 			//       |       + 2
-			//       |
-			//       + internalE
-			//           |
-			//           + leafC
-			//           |   |
-			//           |   + 3
-			//           |
-			//           + leafD
-			//               |
-			//               + 4
-			//               + 5
+			//       |       + 3
+
 			leafD := newLeafFrom(nil, 4, 5)
 			leafC := newLeafFrom(leafD, 3)
 			leafB := newLeafFrom(leafC, 2)
@@ -511,6 +532,7 @@ func TestGenericInsertOrder2(t *testing.T) {
 			internalC := newInternalFrom(internalD, internalE)
 			internalB := newInternalFrom(leafA)
 			internalA := newInternalFrom(internalB, internalC)
+
 			ensureNodesMatch(t, tree.root, internalA)
 		})
 	})

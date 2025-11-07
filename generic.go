@@ -488,109 +488,13 @@ func (t *GenericTree[K]) Delete(key K) {
 	}
 }
 
-// Insert inserts the key-value pair into the tree, replacing the existing value
-// with the new value if the key is already in the tree.
+// Insert inserts the key-value pair into the tree, replacing the existing
+// value with the new value if the key is already in the tree.
 func (t *GenericTree[K]) Insert(key K, value any) {
-	t.rootMutex.Lock()
-	defer t.rootMutex.Unlock()
-
-	var keyZeroValue K
-
-	n := t.root
-	n.lock()
-
-	// Split the root node when required. Regardless of whether the root is an
-	// internal or a leaf node, the root shall become an internal node.
-	if left, right := n.maybeSplit(t.order); right != nil {
-		leftSmallest := left.smallest()
-		if key < leftSmallest {
-			leftSmallest = key
-		}
-		rightSmallest := right.smallest()
-		t.root = &internalNode[K]{
-			Runts:    []K{leftSmallest, rightSmallest},
-			Children: []node[K]{left, right},
-		}
-		// Decide whether we need to descend left or right.
-		if key >= rightSmallest {
-			n.unlock() // unlock the left, since same node
-			n = right
-		} else {
-			right.unlock()
-		}
-	}
-
-	for n.isInternal() {
-		parent := n.(*internalNode[K])
-		index := searchLessThanOrEqualTo(key, parent.Runts)
-
-		child := parent.Children[index]
-		child.lock()
-
-		if index == 0 {
-			if smallest := child.smallest(); key < smallest {
-				// preemptively update smallest value
-				parent.Runts[0] = key
-			}
-		}
-
-		// Split the internal node when required.
-		if _, right := child.maybeSplit(t.order); right != nil {
-			// Insert sibling to the right of current node.
-			parent.Runts = append(parent.Runts, keyZeroValue)
-			parent.Children = append(parent.Children, nil)
-			copy(parent.Runts[index+2:], parent.Runts[index+1:])
-			copy(parent.Children[index+2:], parent.Children[index+1:])
-			parent.Children[index+1] = right
-			rightSmallest := right.smallest()
-			parent.Runts[index+1] = rightSmallest
-			// Decide whether we need to descend left or right.
-			if key >= rightSmallest {
-				child.unlock() // release lock on child
-				child = right  // descend to newly created sibling
-			} else {
-				right.unlock()
-			}
-		}
-
-		// POST: tail end recursion to intended child
-		parent.unlock() // release lock on this node before go to child locked above
-		n = child
-	}
-
-	ln := n.(*leafNode[K])
-
-	// When the new value will become the first element in a leaf, which is only
-	// possible for an empty tree, or when new key comes after final leaf runt,
-	// a simple append will suffice.
-	if len(ln.Runts) == 0 || key > ln.Runts[len(ln.Runts)-1] {
-		ln.Runts = append(ln.Runts, key)
-		ln.Values = append(ln.Values, value)
-		ln.unlock()
-		return
-	}
-
-	index := searchGreaterThanOrEqualTo(key, ln.Runts)
-
-	if key == ln.Runts[index] {
-		// When the key matches the runt, merely need to update the value.
-		ln.Values[index] = value
-		ln.unlock()
-		return
-	}
-
-	// Make room for and insert the new key-value pair into leaf.
-
-	// Append zero Values to make room in arrays
-	ln.Runts = append(ln.Runts, keyZeroValue)
-	ln.Values = append(ln.Values, nil)
-	// Shift elements to the right to make room for new data
-	copy(ln.Runts[index+1:], ln.Runts[index:])
-	copy(ln.Values[index+1:], ln.Values[index:])
-	// Store the new data
-	ln.Runts[index] = key
-	ln.Values[index] = value
-	ln.unlock()
+	// NOTE: This has the Same logic as Update, and rather than duplicate that
+	// logic, merely invoke Update method with a callback that ignores its
+	// arguments and returns the value to be stored.
+	t.Update(key, func(_ any, _ bool) any { return value })
 }
 
 // Search returns the value associated with key from the tree.
@@ -648,7 +552,7 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 		rightSmallest := right.smallest()
 		t.root = &internalNode[K]{
 			Runts:    []K{leftSmallest, rightSmallest},
-			Children: []node[K]{left, right}, // 511
+			Children: []node[K]{left, right},
 		}
 		// Decide whether we need to descend left or right.
 		if key >= rightSmallest {
@@ -660,29 +564,29 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 	}
 
 	for n.isInternal() {
-		parent := n.(*internalNode[K])
-		index := searchLessThanOrEqualTo(key, parent.Runts)
+		internal := n.(*internalNode[K])
+		index := searchLessThanOrEqualTo(key, internal.Runts)
 
-		child := parent.Children[index] // 525
+		child := internal.Children[index]
 		child.lock()
 
 		if index == 0 {
 			if smallest := child.smallest(); key < smallest {
 				// preemptively update smallest value
-				parent.Runts[0] = key
+				internal.Runts[0] = key
 			}
 		}
 
-		// Split the internal node when required.
+		// Split the child node when required.
 		if _, right := child.maybeSplit(t.order); right != nil {
 			// Insert sibling to the right of current node.
-			parent.Runts = append(parent.Runts, keyZeroValue)
-			parent.Children = append(parent.Children, nil)
-			copy(parent.Runts[index+2:], parent.Runts[index+1:])
-			copy(parent.Children[index+2:], parent.Children[index+1:])
-			parent.Children[index+1] = right
+			internal.Runts = append(internal.Runts, keyZeroValue)
+			internal.Children = append(internal.Children, nil)
+			copy(internal.Runts[index+2:], internal.Runts[index+1:])
+			copy(internal.Children[index+2:], internal.Children[index+1:])
+			internal.Children[index+1] = right
 			rightSmallest := right.smallest()
-			parent.Runts[index+1] = rightSmallest
+			internal.Runts[index+1] = rightSmallest
 			// Decide whether we need to descend left or right.
 			if key >= rightSmallest {
 				child.unlock() // release lock on child
@@ -693,44 +597,44 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 		}
 
 		// POST: tail end recursion to intended child
-		parent.unlock() // release lock on this node before go to child locked above
+		internal.unlock() // release lock on this node before go to child locked above
 		n = child
 	}
 
-	ln := n.(*leafNode[K])
+	leaf := n.(*leafNode[K])
 
 	// When the new value will become the first element in a leaf, which is only
 	// possible for an empty tree, or when new key comes after final leaf runt,
 	// a simple append will suffice.
-	if len(ln.Runts) == 0 || key > ln.Runts[len(ln.Runts)-1] {
+	if len(leaf.Runts) == 0 || key > leaf.Runts[len(leaf.Runts)-1] {
 		value := callback(nil, false)
-		ln.Runts = append(ln.Runts, key)
-		ln.Values = append(ln.Values, value)
-		ln.unlock()
+		leaf.Runts = append(leaf.Runts, key)
+		leaf.Values = append(leaf.Values, value)
+		leaf.unlock()
 		return
 	}
 
-	index := searchGreaterThanOrEqualTo(key, ln.Runts)
+	index := searchGreaterThanOrEqualTo(key, leaf.Runts)
 
-	if key == ln.Runts[index] {
+	if key == leaf.Runts[index] {
 		// When the key matches the runt, merely need to update the value.
-		ln.Values[index] = callback(ln.Values[index], true)
-		ln.unlock()
+		leaf.Values[index] = callback(leaf.Values[index], true)
+		leaf.unlock()
 		return
 	}
 
 	// Make room for and insert the new key-value pair into leaf.
 
 	// Append zero Values to make room in arrays
-	ln.Runts = append(ln.Runts, keyZeroValue)
-	ln.Values = append(ln.Values, nil)
+	leaf.Runts = append(leaf.Runts, keyZeroValue)
+	leaf.Values = append(leaf.Values, nil)
 	// Shift elements to the right to make room for new data
-	copy(ln.Runts[index+1:], ln.Runts[index:])
-	copy(ln.Values[index+1:], ln.Values[index:])
+	copy(leaf.Runts[index+1:], leaf.Runts[index:])
+	copy(leaf.Values[index+1:], leaf.Values[index:])
 	// Store the new data
-	ln.Runts[index] = key
-	ln.Values[index] = callback(nil, false)
-	ln.unlock()
+	leaf.Runts[index] = key
+	leaf.Values[index] = callback(nil, false)
+	leaf.unlock()
 }
 
 // NewScanner returns a cursor that iteratively returns key-value pairs from
