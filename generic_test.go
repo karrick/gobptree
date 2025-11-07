@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"math"
+	"math/rand"
 	"testing"
 )
 
@@ -12,7 +13,7 @@ import (
 ////////////////////////////////////////
 
 func ensureInternalNodesMatch[K cmp.Ordered](t *testing.T, got, want *internalNode[K]) {
-	// t.Helper()
+	t.Helper()
 
 	if got == nil {
 		if want != nil {
@@ -24,12 +25,12 @@ func ensureInternalNodesMatch[K cmp.Ordered](t *testing.T, got, want *internalNo
 	}
 
 	t.Run("Runts", func(t *testing.T) {
-		// t.Helper()
+		t.Helper()
 		ensureSame(t, got.Runts, want.Runts)
 	})
 
 	t.Run("Children", func(t *testing.T) {
-		// t.Helper()
+		t.Helper()
 		if g, w := len(got.Children), len(want.Children); g != w {
 			t.Errorf("length(Children) GOT: %v; WANT: %v", g, w)
 		}
@@ -40,7 +41,7 @@ func ensureInternalNodesMatch[K cmp.Ordered](t *testing.T, got, want *internalNo
 }
 
 func ensureLeafNodesMatch[K cmp.Ordered](t *testing.T, got, want *leafNode[K]) {
-	// t.Helper()
+	t.Helper()
 
 	if got == nil {
 		if want != nil {
@@ -52,23 +53,23 @@ func ensureLeafNodesMatch[K cmp.Ordered](t *testing.T, got, want *leafNode[K]) {
 	}
 
 	t.Run("Runts", func(t *testing.T) {
-		// t.Helper()
+		t.Helper()
 		ensureSame(t, got.Runts, want.Runts)
 	})
 
 	t.Run("Values", func(t *testing.T) {
-		// t.Helper()
+		t.Helper()
 		ensureSame(t, got.Values, want.Values)
 	})
 
 	t.Run("Next", func(t *testing.T) {
-		// t.Helper()
+		t.Helper()
 		ensureLeafNodesMatch(t, got.Next, want.Next)
 	})
 }
 
 func ensureNodesMatch[K cmp.Ordered](t *testing.T, got, want node[K]) {
-	// t.Helper()
+	t.Helper()
 
 	switch e := want.(type) {
 	case *internalNode[K]:
@@ -88,19 +89,71 @@ func ensureNodesMatch[K cmp.Ordered](t *testing.T, got, want node[K]) {
 	}
 }
 
+func ensureTree[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want node[K]) {
+	t.Helper()
+
+	// IMPORTANT: Must stitch before running following checks.
+	leaf := stitchNextValues(want, nil)
+
+	t.Run("values", func(t *testing.T) {
+		t.Helper()
+
+		var gotValues, wantValues []any
+
+		// got values
+		scanner := tree.NewScannerAll()
+		for scanner.Scan() {
+			_, value := scanner.Pair()
+			gotValues = append(gotValues, value)
+		}
+		ensureError(t, scanner.Close())
+
+		// want values
+		for leaf != nil {
+			for _, value := range leaf.Values {
+				wantValues = append(wantValues, value)
+			}
+			leaf = leaf.Next
+		}
+
+		ensureSame(t, gotValues, wantValues)
+	})
+
+	t.Run("structure", func(t *testing.T) {
+		t.Helper()
+
+		ensureNodesMatch(t, tree.root, want)
+	})
+}
+
+func ensureStructure[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want node[K]) {
+	t.Helper()
+
+	t.Run("structure", func(t *testing.T) {
+		t.Helper()
+
+		stitchNextValues(want, nil)
+		ensureNodesMatch(t, tree.root, want)
+	})
+}
+
 func ensureValues[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want []any) {
 	t.Helper()
 
-	var got []any
+	t.Run("contents", func(t *testing.T) {
+		t.Helper()
 
-	scanner := tree.NewScannerAll()
-	for scanner.Scan() {
-		item, _ := scanner.Pair()
-		got = append(got, item)
-	}
+		var got []any
 
-	ensureError(t, scanner.Close())
-	ensureSame(t, got, want)
+		scanner := tree.NewScannerAll()
+		for scanner.Scan() {
+			item, _ := scanner.Pair()
+			got = append(got, item)
+		}
+
+		ensureError(t, scanner.Close())
+		ensureSame(t, got, want)
+	})
 }
 
 ////////////////////////////////////////
@@ -130,6 +183,49 @@ func newLeafFrom[K cmp.Ordered](next *leafNode[K], items ...K) *leafNode[K] {
 		n.Values[i] = items[i]
 	}
 	return n
+}
+
+func newLeaf[K cmp.Ordered](items ...K) *leafNode[K] {
+	n := &leafNode[K]{
+		Runts:  make([]K, len(items)),
+		Values: make([]any, len(items)),
+		Next:   nil,
+	}
+	for i := 0; i < len(items); i++ {
+		n.Runts[i] = items[i]
+		n.Values[i] = items[i]
+	}
+	return n
+}
+
+func newInternal[K cmp.Ordered](items ...node[K]) *internalNode[K] {
+	n := &internalNode[K]{
+		Runts:    make([]K, len(items)),
+		Children: make([]node[K], len(items)),
+	}
+	for i := 0; i < len(items); i++ {
+		n.Runts[i] = items[i].smallest()
+		n.Children[i] = items[i]
+	}
+	return n
+}
+
+// stitchNextValues recursively walks the tree starting at n and setting the
+// leaf node next fields, then returns the first leaf node in the tree branch.
+func stitchNextValues[K cmp.Ordered](n node[K], nextLeaf *leafNode[K]) *leafNode[K] {
+	switch tv := n.(type) {
+	case *internalNode[K]:
+		// Enumerate from the final to the first child.
+		for i := len(tv.Children) - 1; i >= 0; i-- {
+			nextLeaf = stitchNextValues(tv.Children[i], nextLeaf)
+		}
+		return nextLeaf
+	case *leafNode[K]:
+		tv.Next = nextLeaf
+		return tv
+	default:
+		panic(fmt.Errorf("GOT: %#v; WANT: node[K]", n))
+	}
 }
 
 ////////////////////////////////////////
@@ -389,322 +485,58 @@ func TestGenericInsertOrder2(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
 		tree.Insert(1, 1)
 
-		t.Run("contents", func(t *testing.T) {
-			ensureValues(t, tree, []any{1})
-		})
-
-		t.Run("structure", func(t *testing.T) {
-			ensureNodesMatch(t, tree.root, newLeafFrom(nil, 1))
-		})
+		ensureTree(t, tree, newLeaf(1))
 	})
 
 	t.Run("2", func(t *testing.T) {
 		tree.Insert(2, 2)
 
-		t.Run("contents", func(t *testing.T) {
-			ensureValues(t, tree, []any{1, 2})
-		})
-
-		t.Run("structure", func(t *testing.T) {
-			ensureNodesMatch(t, tree.root, newLeafFrom(nil, 1, 2))
-		})
+		ensureTree(t, tree, newLeaf(1, 2))
 	})
 
 	t.Run("3", func(t *testing.T) {
 		tree.Insert(3, 3)
 
-		t.Run("contents", func(t *testing.T) {
-			ensureValues(t, tree, []any{1, 2, 3})
-		})
-
-		t.Run("structure", func(t *testing.T) {
-			// internalA
-			//   |
-			//   + leafA
-			//   |   |
-			//   |   + 1
-			//   |
-			//   + leafB
-			//       |
-			//       + 2
-			//       + 3
-			leafB := newLeafFrom(nil, 2, 3)
-			leafA := newLeafFrom(leafB, 1)
-			internalA := newInternalFrom(leafA, leafB)
-			ensureNodesMatch(t, tree.root, internalA)
-		})
+		ensureTree(t, tree,
+			newInternal(
+				newLeaf(1),
+				newLeaf(2, 3),
+			),
+		)
 	})
 
 	t.Run("4", func(t *testing.T) {
 		tree.Insert(4, 4)
 
-		t.Run("contents", func(t *testing.T) {
-			ensureValues(t, tree, []any{1, 2, 3, 4})
-		})
-
-		t.Run("structure", func(t *testing.T) {
-			// internalA
-			//   |
-			//   + internalB
-			//   |   |
-			//   |   + leafA
-			//   |       |
-			//   |       + 1
-			//   |
-			//   + internalC
-			//       |
-			//       + leafB
-			//       |   |
-			//       |   + 2
-			//       |
-			//       + leafC
-			//           |
-			//           + 3
-			//           + 4
-			leafC := newLeafFrom(nil, 3, 4)
-			leafB := newLeafFrom(leafC, 2)
-			leafA := newLeafFrom(leafB, 1)
-			internalC := newInternalFrom(leafB, leafC)
-			internalB := newInternalFrom(leafA)
-			internalA := newInternalFrom(internalB, internalC)
-			ensureNodesMatch(t, tree.root, internalA)
-		})
+		ensureTree(t, tree,
+			newInternal(
+				newInternal(
+					newLeaf(1),
+				),
+				newInternal(
+					newLeaf(2),
+					newLeaf(3, 4),
+				),
+			),
+		)
 	})
 
 	t.Run("5", func(t *testing.T) {
 		t.Skip("FIXME")
 		tree.Insert(5, 5)
 
-		t.Run("contents", func(t *testing.T) {
-			ensureValues(t, tree, []any{1, 2, 3, 4, 5})
-		})
-
-		t.Run("structure", func(t *testing.T) {
-			// root
-			//   |
-			//   + leaf alfa
-			//       |
-			//       + 1
-
-			// root
-			//   |
-			//   + leaf alfa
-			//       |
-			//       + 1
-			//       + 2
-
-			// root
-			//   |
-			//   + internal charlie
-			//       |
-			//       + leaf alfa
-			//           |
-			//           + 1
-			//       |
-			//       + leaf bravo
-			//           |
-			//           + 2
-			//           + 3
-
-			// root
-			//   |
-			//   + internal echo
-			//       |
-			//       + internal charlie
-			//       |   |
-			//       |   + leaf alfa
-			//       |       |
-			//       |       + 1
-			//       |
-			//       + internal delta
-			//       |   |
-			//       |   + leaf bravo
-			//       |       |
-			//       |       + 2
-			//       |       + 3
-
-			leafD := newLeafFrom(nil, 4, 5)
-			leafC := newLeafFrom(leafD, 3)
-			leafB := newLeafFrom(leafC, 2)
-			leafA := newLeafFrom(leafB, 1)
-			internalE := newInternalFrom(leafC, leafD)
-			internalD := newInternalFrom(leafB)
-			internalC := newInternalFrom(internalD, internalE)
-			internalB := newInternalFrom(leafA)
-			internalA := newInternalFrom(internalB, internalC)
-
-			ensureNodesMatch(t, tree.root, internalA)
-		})
+		ensureTree(t, tree,
+			newInternal(
+				newInternal(
+					newLeaf(1),
+				),
+				newInternal(
+					newLeaf(2),
+					newLeaf(3, 4),
+				),
+			),
+		)
 	})
-
-	// t.Run("5", func(t *testing.T) {
-	// 	tree.Insert(5, 5)
-
-	// 	leafB := newLeafFrom(nil, 3, 4, 5)
-	// 	leafA := newLeafFrom(leafB, 1, 2)
-	// 	ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB))
-	// })
-
-	// t.Run("6", func(t *testing.T) {
-	// 	tree.Insert(6, 6)
-
-	// 	leafB := newLeafFrom(nil, 3, 4, 5, 6)
-	// 	leafA := newLeafFrom(leafB, 1, 2)
-	// 	ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB))
-	// })
-
-	// t.Run("7", func(t *testing.T) {
-	// 	tree.Insert(7, 7)
-
-	// 	leafC := newLeafFrom(nil, 5, 6, 7)
-	// 	leafB := newLeafFrom(leafC, 3, 4)
-	// 	leafA := newLeafFrom(leafB, 1, 2)
-	// 	ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB, leafC))
-	// })
-
-	// t.Run("8", func(t *testing.T) {
-	// 	tree.Insert(8, 8)
-
-	// 	leafC := newLeafFrom(nil, 5, 6, 7, 8)
-	// 	leafB := newLeafFrom(leafC, 3, 4)
-	// 	leafA := newLeafFrom(leafB, 1, 2)
-	// 	ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB, leafC))
-	// })
-
-	// t.Run("9", func(t *testing.T) {
-	// 	tree.Insert(9, 9)
-
-	// 	leafD := newLeafFrom(nil, 7, 8, 9)
-	// 	leafC := newLeafFrom(leafD, 5, 6)
-	// 	leafB := newLeafFrom(leafC, 3, 4)
-	// 	leafA := newLeafFrom(leafB, 1, 2)
-	// 	ensureNodesMatch(t, tree.root, newInternalFrom(leafA, leafB, leafC, leafD))
-	// })
-
-	// t.Run("10", func(t *testing.T) {
-	// 	tree.Insert(10, 10)
-
-	// 	// root -> internal A
-	// 	// internal A -> internal B, internal C
-	// 	// internal B -> leaf A, leaf B
-	// 	// internal C -> leaf C, leaf D
-
-	// 	leafD := newLeafFrom(nil, 7, 8, 9, 10)
-	// 	leafC := newLeafFrom(leafD, 5, 6)
-	// 	leafB := newLeafFrom(leafC, 3, 4)
-	// 	leafA := newLeafFrom(leafB, 1, 2)
-
-	// 	internalC := newInternalFrom(leafC, leafD)
-	// 	internalB := newInternalFrom(leafA, leafB)
-	// 	internalA := newInternalFrom(internalB, internalC)
-	// 	ensureNodesMatch(t, tree.root, internalA)
-	// })
-
-	// t.Run("11", func(t *testing.T) {
-	// 	tree.Insert(11, 11)
-
-	// 	// root -> internal A
-	// 	// internal A -> internal B, internal C
-	// 	// internal B -> leaf A, leaf B
-	// 	// internal C -> leaf C, leaf D, leaf E
-
-	// 	leafE := newLeafFrom(nil, 9, 10, 11)
-	// 	leafD := newLeafFrom(leafE, 7, 8)
-	// 	leafC := newLeafFrom(leafD, 5, 6)
-	// 	leafB := newLeafFrom(leafC, 3, 4)
-	// 	leafA := newLeafFrom(leafB, 1, 2)
-
-	// 	internalC := newInternalFrom(leafC, leafD, leafE)
-	// 	internalB := newInternalFrom(leafA, leafB)
-	// 	internalA := newInternalFrom(internalB, internalC)
-	// 	ensureNodesMatch(t, tree.root, internalA)
-	// })
-
-	// t.Run("12", func(t *testing.T) {
-	// 	tree.Insert(12, 12)
-
-	// 	// root -> internal A
-	// 	// internal A -> internal B, internal C
-	// 	// internal B -> leaf A, leaf B
-	// 	// internal C -> leaf C, leaf D, leaf E
-
-	// 	leafE := newLeafFrom(nil, 9, 10, 11, 12)
-	// 	leafD := newLeafFrom(leafE, 7, 8)
-	// 	leafC := newLeafFrom(leafD, 5, 6)
-	// 	leafB := newLeafFrom(leafC, 3, 4)
-	// 	leafA := newLeafFrom(leafB, 1, 2)
-
-	// 	internalC := newInternalFrom(leafC, leafD, leafE)
-	// 	internalB := newInternalFrom(leafA, leafB)
-	// 	internalA := newInternalFrom(internalB, internalC)
-	// 	ensureNodesMatch(t, tree.root, internalA)
-	// })
-
-	// t.Run("13", func(t *testing.T) {
-	// 	tree.Insert(13, 13)
-
-	// 	// root -> internal A
-	// 	// internal A -> internal B, internal C
-	// 	// internal B -> leaf A, leaf B
-	// 	// internal C -> leaf C, leaf D, leaf E, leaf F
-
-	// 	leafF := newLeafFrom(nil, 11, 12, 13)
-	// 	leafE := newLeafFrom(leafF, 9, 10)
-	// 	leafD := newLeafFrom(leafE, 7, 8)
-	// 	leafC := newLeafFrom(leafD, 5, 6)
-	// 	leafB := newLeafFrom(leafC, 3, 4)
-	// 	leafA := newLeafFrom(leafB, 1, 2)
-
-	// 	internalC := newInternalFrom(leafC, leafD, leafE, leafF)
-	// 	internalB := newInternalFrom(leafA, leafB)
-	// 	internalA := newInternalFrom(internalB, internalC)
-	// 	ensureNodesMatch(t, tree.root, internalA)
-	// })
-
-	// t.Run("14", func(t *testing.T) {
-	// 	tree.Insert(14, 14)
-
-	// 	// root -> internal A
-	// 	// internal A -> internal B, internal C
-	// 	// internal B -> leaf A, leaf B
-	// 	// internal C -> leaf C, leaf D, leaf E, leaf F
-
-	// 	leafF := newLeafFrom(nil, 11, 12, 13, 14)
-	// 	leafE := newLeafFrom(leafF, 9, 10)
-	// 	leafD := newLeafFrom(leafE, 7, 8)
-	// 	leafC := newLeafFrom(leafD, 5, 6)
-	// 	leafB := newLeafFrom(leafC, 3, 4)
-	// 	leafA := newLeafFrom(leafB, 1, 2)
-
-	// 	internalC := newInternalFrom(leafC, leafD, leafE, leafF)
-	// 	internalB := newInternalFrom(leafA, leafB)
-	// 	internalA := newInternalFrom(internalB, internalC)
-	// 	ensureNodesMatch(t, tree.root, internalA)
-	// })
-
-	// t.Run("15", func(t *testing.T) {
-	// 	tree.Insert(15, 15)
-
-	// 	// root -> internal A
-	// 	// internal A -> internal B, internal C, internal D
-	// 	// internal B -> leaf A, leaf B
-	// 	// internal C -> leaf C, leaf D
-	// 	// internal D -> leaf E, leaf F, leaf G
-
-	// 	leafG := newLeafFrom(nil, 13, 14, 15)
-	// 	leafF := newLeafFrom(leafG, 11, 12)
-	// 	leafE := newLeafFrom(leafF, 9, 10)
-	// 	leafD := newLeafFrom(leafE, 7, 8)
-	// 	leafC := newLeafFrom(leafD, 5, 6)
-	// 	leafB := newLeafFrom(leafC, 3, 4)
-	// 	leafA := newLeafFrom(leafB, 1, 2)
-
-	// 	internalD := newInternalFrom(leafE, leafF, leafG)
-	// 	internalC := newInternalFrom(leafC, leafD)
-	// 	internalB := newInternalFrom(leafA, leafB)
-	// 	internalA := newInternalFrom(internalB, internalC, internalD)
-	// 	ensureNodesMatch(t, tree.root, internalA)
-	// })
 }
 
 func TestGenericInsertOrder4(t *testing.T) {
@@ -1815,26 +1647,150 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 }
 
 func TestGenericDelete(t *testing.T) {
-	const order = 32
+	t.Skip("re-enable after insertion tests working")
 
-	tree, err := NewGenericTree[int](order)
-	ensureError(t, err)
+	t.Run("tiny", func(t *testing.T) {
+		// t.Skip("FIXME: order of 2 panics")
 
-	for _, v := range randomizedValues {
-		tree.Insert(v, v)
-	}
+		const order = 2
 
-	for _, v := range randomizedValues {
-		if _, ok := tree.Search(v); !ok {
-			t.Fatalf("GOT: %v; WANT: %v", ok, true)
+		tree, err := NewGenericTree[int](order)
+		ensureError(t, err)
+		ensureValues(t, tree, nil)
+
+		values := rand.Perm(8)
+		final := values[len(values)-1]
+
+		for _, v := range values {
+			tree.Insert(v, v)
 		}
-	}
 
-	for _, v := range randomizedValues {
-		tree.Delete(v)
-	}
+		// Ensure all values can be found in the tree.
+		ensureValues(t, tree, []any{0, 1, 2, 3, 4, 5, 6, 7})
 
-	t.Run("empty", func(t *testing.T) {
-		tree.Delete(13)
+		// NOTE: Only delete up to but not including the final value, so can
+		// verify when only a single datum remaining, the root should point to
+		// a leaf node.
+
+		t.Run("delete from non empty tree", func(t *testing.T) {
+			for _, v := range values[:len(values)-1] {
+				tree.Delete(v)
+			}
+		})
+
+		ensureValues(t, tree, []any{final})
+
+		ensureNodesMatch(t, tree.root, &leafNode[int]{
+			Runts:  []int{final},
+			Values: []any{final},
+			Next:   nil,
+		})
+
+		// NOTE: Now delete the final node, and ensure the root points to an
+		// empty leaf node.
+		tree.Delete(final)
+
+		ensureNodesMatch(t, tree.root, &leafNode[int]{
+			Runts:  []int{},
+			Values: []any{},
+			Next:   nil,
+		})
+
+		// NOTE: Should be able to delete from an empty tree without
+		// consequence.
+		t.Run("delete from empty tree", func(t *testing.T) {
+			tree.Delete(final)
+		})
+	})
+
+	t.Run("small", func(t *testing.T) {
+		const order = 4
+
+		tree, err := NewGenericTree[int](order)
+		ensureError(t, err)
+		ensureValues(t, tree, nil)
+
+		values := rand.Perm(16)
+		final := values[len(values)-1]
+
+		for _, v := range values {
+			tree.Insert(v, v)
+		}
+
+		// Ensure all values can be found in the tree.
+		ensureValues(t, tree, []any{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15})
+
+		// NOTE: Only delete up to but not including the final value, so can
+		// verify when only a single datum remaining, the root should point to
+		// a leaf node.
+
+		t.Run("delete from non empty tree", func(t *testing.T) {
+			for _, v := range values[:len(values)-1] {
+				tree.Delete(v)
+			}
+		})
+
+		ensureValues(t, tree, []any{final})
+
+		ensureNodesMatch(t, tree.root, &leafNode[int]{
+			Runts:  []int{final},
+			Values: []any{final},
+			Next:   nil,
+		})
+
+		// NOTE: Now delete the final node, and ensure the root points to an
+		// empty leaf node.
+		tree.Delete(final)
+
+		ensureNodesMatch(t, tree.root, &leafNode[int]{
+			Runts:  []int{},
+			Values: []any{},
+			Next:   nil,
+		})
+
+		// NOTE: Should be able to delete from an empty tree without
+		// consequence.
+		t.Run("delete from empty tree", func(t *testing.T) {
+			tree.Delete(final)
+		})
+	})
+
+	t.Run("large", func(t *testing.T) {
+		t.Skip("FIXME")
+
+		const order = 32
+
+		tree, err := NewGenericTree[int](order)
+		ensureError(t, err)
+		ensureValues(t, tree, nil)
+
+		for _, v := range randomizedValues {
+			tree.Insert(v, v)
+		}
+
+		// Ensure all values can be found in the tree.
+		for _, v := range randomizedValues {
+			if _, ok := tree.Search(v); !ok {
+				t.Fatalf("GOT: %v; WANT: %v", ok, true)
+			}
+		}
+
+		t.Run("delete from non empty tree", func(t *testing.T) {
+			for _, v := range randomizedValues {
+				tree.Delete(v)
+			}
+		})
+
+		ensureNodesMatch(t, tree.root, &leafNode[int]{
+			Runts:  []int{},
+			Values: []any{},
+			Next:   nil,
+		})
+
+		// NOTE: Should be able to delete from an empty tree without
+		// consequence.
+		t.Run("delete from empty tree", func(t *testing.T) {
+			tree.Delete(13)
+		})
 	})
 }

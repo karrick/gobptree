@@ -470,18 +470,22 @@ func (t *GenericTree[K]) Delete(key K) {
 	t.root.lock()
 	defer t.root.unlock()
 
-	if t.root.deleteKey(t.order, key) || t.root.count() > 1 {
-		// Root is only too small when fewer than 2 Children
-		return
+	// NOTE: Before invoking count method, we know we can return without
+	// combining nodes when deleteKey returns true. If deleteKey returns
+	// false, then root node no longer has the minimum number of items.
+	//
+	// ???: Should this set the minimum size to half of the tree order?
+	minSize := t.order
+	if t.root.deleteKey(minSize, key) || t.root.count() > 1 {
+		return // root node is large enough
 	}
 
 	// POST: Root has either 0 or 1 elements.
 
 	// If root is a leaf node, then it is already as small as it can
-	// be. Otherwise, when root is an internal node, discard
+	// be. Otherwise, when root is an internal node, discard and replace by
+	// its leaf node.
 
-	// Root might be an internal or a leaf node. If leaf node, the root is
-	// already as small as can be.
 	if root, ok := t.root.(*internalNode[K]); ok {
 		// Root has outlived its usefulness when it has only a single child.
 		t.root = root.Children[0]
