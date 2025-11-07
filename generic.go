@@ -64,50 +64,81 @@ type genericNode[K cmp.Ordered] interface {
 }
 
 // genericInternalNode represents an internal node for a GenericTree with keys
-// of any cmp.Ordered type.
+// of any cmp.Ordered type. Its data is stored in a pair of strided arrays,
+// where Runts[0] corresponds to the smallest key in Children[0], and so forth
+// for additional slice elements.
 type genericInternalNode[K cmp.Ordered] struct {
+	// Runts represent the smallest key from corresponding Children node.
 	Runts    []K
+
+	// Children represent pointers to additional nodes of the tree.
 	Children []genericNode[K]
+
+	// mutex guards access to this node.
 	mutex    sync.Mutex
 }
 
+// absorbRight moves all of the sibling node's Runts and Children into left
+// node.
+// 
+// NOTE: sibling must be locked before calling.
 func (left *genericInternalNode[K]) absorbRight(sibling genericNode[K]) {
 	right := sibling.(*genericInternalNode[K])
+
 	left.Runts = append(left.Runts, right.Runts...)
 	left.Children = append(left.Children, right.Children...)
 
-	// Perhaps following are not strictly needed, but de-allocate slices.
+	// Perhaps not strictly needed, but de-allocate sibling fields and release
+	// pointers.
 	right.Runts = nil
 	right.Children = nil
 }
 
+// adoptFromLeft moves one element from the sibling node to the right node,
+// after making room for it at the beginning of the right node's slices.
+//
+// NOTE: sibling must be locked before calling.
 func (right *genericInternalNode[K]) adoptFromLeft(sibling genericNode[K]) {
-	var zeroValue K
+	var keyZeroValue K
 
 	left := sibling.(*genericInternalNode[K])
 
-	right.Runts = append(right.Runts, zeroValue)
+	// Extend slices of the right node by appending the zero value of the key
+	// and pointer data types.
+	right.Runts = append(right.Runts, keyZeroValue)
 	right.Children = append(right.Children, nil)
+
+	// Shift elements of the right node to the right from 0 to 1.
 	copy(right.Runts[1:], right.Runts[0:])
 	copy(right.Children[1:], right.Children[0:])
 
+	// Copy the tail element of the left node to the head position of the
+	// right node.
 	index := len(left.Runts) - 1
 	right.Runts[0] = left.Runts[index]
 	right.Children[0] = left.Children[index]
 
+	// Shrink the left node by one.
 	left.Runts = left.Runts[:index]
 	left.Children = left.Children[:index]
 }
 
+// adoptFromRight moves one element from the sibling node to the left node.
+//
+// NOTE: sibling must be locked before calling.
 func (left *genericInternalNode[K]) adoptFromRight(sibling genericNode[K]) {
 	right := sibling.(*genericInternalNode[K])
 
+	// Copy the head element of the right node to the tail position of the
+	// left node.
 	left.Runts = append(left.Runts, right.Runts[0])
 	left.Children = append(left.Children, right.Children[0])
 
+	// Shift elements of the right node to the left from 1 to 0.
 	copy(right.Runts[0:], right.Runts[1:])
 	copy(right.Children[0:], right.Children[1:])
 
+	// Shrink the right node by one.
 	index := len(right.Runts) - 1
 	right.Runts = right.Runts[:index]
 	right.Children = right.Children[:index]
@@ -116,14 +147,19 @@ func (left *genericInternalNode[K]) adoptFromRight(sibling genericNode[K]) {
 func (i *genericInternalNode[K]) count() int { return len(i.Runts) }
 
 // deleteKey removes key and its value from the node, returning true when the
-// node has fewer items than minSize.
+// node has fewer items than minSize, and returning false otherwise.
 func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
+	// Determine index of the child node where key would be stored.
 	index := searchLessThanOrEqualTo(key, i.Runts)
+
+	// Acquire exclusive lock to the child node.
 	child := i.Children[index]
 	child.lock()
 	defer child.unlock()
 
+	// Delete the key from the child.
 	if !child.deleteKey(minSize, key) {
+		// Recall that deleteKey returns false when the child node has 
 		return false
 	}
 
@@ -244,47 +280,75 @@ type genericLeafNode[K cmp.Ordered] struct {
 	mutex  sync.Mutex
 }
 
+// absorbRight moves all of the sibling node's Runts and Values into left
+// node, and sets the left's Next field to the value of the sibling's Next
+// field.
+// 
+// NOTE: sibling must be locked before calling.
 func (left *genericLeafNode[K]) absorbRight(sibling genericNode[K]) {
 	right := sibling.(*genericLeafNode[K])
+
 	if left.Next != right {
 		// Superfluous check
 		panic("cannot merge leaf with sibling other than next sibling")
 	}
+
 	left.Runts = append(left.Runts, right.Runts...)
 	left.Values = append(left.Values, right.Values...)
 	left.Next = right.Next
 
-	// Perhaps following are not strictly needed, but de-allocate slices and
-	// release pointers.
+	// Perhaps not strictly needed, but de-allocate sibling fields and release
+	// pointers.
 	right.Runts = nil
 	right.Values = nil
 	right.Next = nil
 }
 
+// adoptFromLeft moves one element from the sibling node to the right node,
+// after making room for it at the beginning of the right node's slices.
+//
+// NOTE: sibling must be locked before calling.
 func (right *genericLeafNode[K]) adoptFromLeft(sibling genericNode[K]) {
-	var zeroValue K
+	var keyZeroValue K
 
 	left := sibling.(*genericLeafNode[K])
 
-	right.Runts = append(right.Runts, zeroValue)
+	// Extend slices of the right node by appending the zero value of the key
+	// and pointer data types.
+	right.Runts = append(right.Runts, keyZeroValue)
 	right.Values = append(right.Values, nil)
+
+	// Shift elements of the right node to the right from 0 to 1.
 	copy(right.Runts[1:], right.Runts[0:])
 	copy(right.Values[1:], right.Values[0:])
 
+	// Copy the tail element of the left node to the head position of the
+	// right node.
 	index := len(left.Runts) - 1
 	right.Runts[0] = left.Runts[index]
 	right.Values[0] = left.Values[index]
 
+	// Shrink the left node by one.
 	left.Runts = left.Runts[:index]
 	left.Values = left.Values[:index]
 }
 
+// adoptFromRight moves one element from the sibling node to the left node.
+//
+// NOTE: sibling must be locked before calling.
 func (left *genericLeafNode[K]) adoptFromRight(sibling genericNode[K]) {
 	right := sibling.(*genericLeafNode[K])
+
+	// Copy the head element of the right node to the tail position of the
+	// left node.
 	left.Runts = append(left.Runts, right.Runts[0])
 	left.Values = append(left.Values, right.Values[0])
+
+	// Shift elements of the right node to the left from 1 to 0.
 	copy(right.Runts[0:], right.Runts[1:])
 	copy(right.Values[0:], right.Values[1:])
+
+	// Shrink the right node by one.
 	index := len(right.Runts) - 1
 	right.Runts = right.Runts[:index]
 	right.Values = right.Values[:index]
@@ -402,7 +466,7 @@ func (t *GenericTree[K]) Insert(key K, value any) {
 	t.rootMutex.Lock()
 	defer t.rootMutex.Unlock()
 
-	var zeroValue K
+	var keyZeroValue K
 
 	n := t.root
 	n.lock()
@@ -445,7 +509,7 @@ func (t *GenericTree[K]) Insert(key K, value any) {
 		// Split the internal node when required.
 		if _, right := child.maybeSplit(t.order); right != nil {
 			// Insert sibling to the right of current node.
-			parent.Runts = append(parent.Runts, zeroValue)
+			parent.Runts = append(parent.Runts, keyZeroValue)
 			parent.Children = append(parent.Children, nil)
 			copy(parent.Runts[index+2:], parent.Runts[index+1:])
 			copy(parent.Children[index+2:], parent.Children[index+1:])
@@ -490,7 +554,7 @@ func (t *GenericTree[K]) Insert(key K, value any) {
 	// Make room for and insert the new key-value pair into leaf.
 
 	// Append zero Values to make room in arrays
-	ln.Runts = append(ln.Runts, zeroValue)
+	ln.Runts = append(ln.Runts, keyZeroValue)
 	ln.Values = append(ln.Values, nil)
 	// Shift elements to the right to make room for new data
 	copy(ln.Runts[index+1:], ln.Runts[index:])
@@ -541,7 +605,7 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 	t.rootMutex.Lock()
 	defer t.rootMutex.Unlock()
 
-	var zeroValue K
+	var keyZeroValue K
 
 	n := t.root
 	n.lock()
@@ -584,7 +648,7 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 		// Split the internal node when required.
 		if _, right := child.maybeSplit(t.order); right != nil {
 			// Insert sibling to the right of current node.
-			parent.Runts = append(parent.Runts, zeroValue)
+			parent.Runts = append(parent.Runts, keyZeroValue)
 			parent.Children = append(parent.Children, nil)
 			copy(parent.Runts[index+2:], parent.Runts[index+1:])
 			copy(parent.Children[index+2:], parent.Children[index+1:])
@@ -630,7 +694,7 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 	// Make room for and insert the new key-value pair into leaf.
 
 	// Append zero Values to make room in arrays
-	ln.Runts = append(ln.Runts, zeroValue)
+	ln.Runts = append(ln.Runts, keyZeroValue)
 	ln.Values = append(ln.Values, nil)
 	// Shift elements to the right to make room for new data
 	copy(ln.Runts[index+1:], ln.Runts[index:])
