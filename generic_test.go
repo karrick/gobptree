@@ -522,17 +522,23 @@ func TestGenericInsertOrder2(t *testing.T) {
 	})
 
 	t.Run("5", func(t *testing.T) {
-		t.Skip("FIXME")
 		tree.Insert(5, 5)
 
 		ensureTree(t, tree,
 			newInternal(
 				newInternal(
-					newLeaf(1),
+					newInternal(
+						newLeaf(1),
+					),
 				),
 				newInternal(
-					newLeaf(2),
-					newLeaf(3, 4),
+					newInternal(
+						newLeaf(2),
+					),
+					newInternal(
+						newLeaf(3),
+						newLeaf(4, 5),
+					),
 				),
 			),
 		)
