@@ -586,17 +586,21 @@ func (t *GenericTree[K]) Update(key K, callback func(any, bool) any) {
 			// Insert sibling to the right of current node.
 			internal.Runts = append(internal.Runts, keyZeroValue)
 			internal.Children = append(internal.Children, nil)
+			// Shift runts and children to the right by one element.
 			copy(internal.Runts[index+2:], internal.Runts[index+1:])
 			copy(internal.Children[index+2:], internal.Children[index+1:])
+			// Insert new right element into internal node.
 			internal.Children[index+1] = right
 			rightSmallest := right.smallest()
 			internal.Runts[index+1] = rightSmallest
 			// Decide whether we need to descend left or right.
-			if key >= rightSmallest {
+			if key < rightSmallest {
+				// will not add this pair to the right node
+				right.unlock()
+			} else {
+				// will add this pair to the right node
 				child.unlock() // release lock on child
 				child = right  // descend to newly created sibling
-			} else {
-				right.unlock()
 			}
 		}
 
