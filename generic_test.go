@@ -825,8 +825,8 @@ func TestGenericLeafNodeDelete(t *testing.T) {
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
-			tooSmall := l.deleteKey(2, 42)
-			if got, want := tooSmall, false; got != want {
+			bigEnough := l.deleteKey(2, 42)
+			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			ensureGenericNode(t, l, &genericLeafNode[int]{
@@ -839,8 +839,8 @@ func TestGenericLeafNodeDelete(t *testing.T) {
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
-			tooSmall := l.deleteKey(2, 11)
-			if got, want := tooSmall, false; got != want {
+			bigEnough := l.deleteKey(2, 11)
+			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			ensureGenericNode(t, l, &genericLeafNode[int]{
@@ -853,8 +853,8 @@ func TestGenericLeafNodeDelete(t *testing.T) {
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
-			tooSmall := l.deleteKey(2, 21)
-			if got, want := tooSmall, false; got != want {
+			bigEnough := l.deleteKey(2, 21)
+			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			ensureGenericNode(t, l, &genericLeafNode[int]{
@@ -867,8 +867,8 @@ func TestGenericLeafNodeDelete(t *testing.T) {
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
-			tooSmall := l.deleteKey(2, 31)
-			if got, want := tooSmall, false; got != want {
+			bigEnough := l.deleteKey(2, 31)
+			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			ensureGenericNode(t, l, &genericLeafNode[int]{
@@ -879,8 +879,8 @@ func TestGenericLeafNodeDelete(t *testing.T) {
 	})
 	t.Run("will be too small", func(t *testing.T) {
 		l := genericLeafFrom(nil, 11, 21, 31, 41)
-		tooSmall := l.deleteKey(4, 21)
-		if got, want := tooSmall, true; got != want {
+		bigEnough := l.deleteKey(4, 21)
+		if got, want := bigEnough, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 		ensureGenericNode(t, l, genericLeafFrom(nil, 11, 31, 41))
@@ -1005,7 +1005,7 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 		child := genericInternalFrom(leafA, leafB, leafC, leafD)
 
-		if got, want := child.deleteKey(4, 22), false; got != want {
+		if got, want := child.deleteKey(4, 22), true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 	})
@@ -1019,8 +1019,8 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 			child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
-			tooSmall := child.deleteKey(4, 12)
-			if got, want := tooSmall, false; got != want {
+			bigEnough := child.deleteKey(4, 12)
+			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
@@ -1043,8 +1043,8 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 			child := genericInternalFrom(leafA, leafB, leafC, leafD)
 
-			tooSmall := child.deleteKey(4, 12)
-			if got, want := tooSmall, true; got != want {
+			bigEnough := child.deleteKey(4, 12)
+			if got, want := bigEnough, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
@@ -1068,8 +1068,8 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 		child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
-		tooSmall := child.deleteKey(4, 12)
-		if got, want := tooSmall, false; got != want {
+		bigEnough := child.deleteKey(4, 12)
+		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
@@ -1088,8 +1088,8 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 			child := genericInternalFrom(leafA, leafB, leafC, leafD)
 
-			tooSmall := child.deleteKey(4, 42)
-			if got, want := tooSmall, true; got != want {
+			bigEnough := child.deleteKey(4, 42)
+			if got, want := bigEnough, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
@@ -1112,8 +1112,8 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 			child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
-			tooSmall := child.deleteKey(4, 52)
-			if got, want := tooSmall, false; got != want {
+			bigEnough := child.deleteKey(4, 52)
+			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
@@ -1137,8 +1137,8 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 			child := genericInternalFrom(leafA, leafB, leafC)
 
-			tooSmall := child.deleteKey(4, 22)
-			if got, want := tooSmall, true; got != want {
+			bigEnough := child.deleteKey(4, 22)
+			if got, want := bigEnough, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
@@ -1160,8 +1160,8 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 			child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
-			tooSmall := child.deleteKey(4, 22)
-			if got, want := tooSmall, false; got != want {
+			bigEnough := child.deleteKey(4, 22)
+			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
@@ -1185,8 +1185,8 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 		child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
-		tooSmall := child.deleteKey(4, 22)
-		if got, want := tooSmall, false; got != want {
+		bigEnough := child.deleteKey(4, 22)
+		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
@@ -1205,8 +1205,8 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 		child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
-		tooSmall := child.deleteKey(4, 52)
-		if got, want := tooSmall, false; got != want {
+		bigEnough := child.deleteKey(4, 52)
+		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
@@ -1225,8 +1225,8 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 		child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
-		tooSmall := child.deleteKey(4, 32)
-		if got, want := tooSmall, false; got != want {
+		bigEnough := child.deleteKey(4, 32)
+		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
@@ -1245,8 +1245,8 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 		child := genericInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
-		tooSmall := child.deleteKey(4, 32)
-		if got, want := tooSmall, false; got != want {
+		bigEnough := child.deleteKey(4, 32)
+		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 

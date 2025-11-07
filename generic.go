@@ -176,7 +176,8 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 		rightSibling = i.Children[index+1]
 		rightSibling.lock()
 		defer rightSibling.unlock()
-		if rightCount = rightSibling.count(); rightCount > minSize {
+		rightCount = rightSibling.count();
+		if rightCount > minSize {
 			child.adoptFromRight(rightSibling)
 			i.Runts[index+1] = rightSibling.smallest()
 			return true
@@ -189,7 +190,8 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 		leftSibling = i.Children[index-1]
 		leftSibling.lock()
 		defer leftSibling.unlock()
-		if leftCount = leftSibling.count(); leftCount > minSize {
+		leftCount = leftSibling.count();
+		if leftCount > minSize {
 			child.adoptFromLeft(leftSibling)
 			return true
 		}
@@ -207,7 +209,7 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 		copy(i.Children[index:], i.Children[index+1:])
 		i.Children = i.Children[:len(i.Children)-1]
 		// This node has one fewer Children.
-		return !(len(i.Runts) < minSize)
+		return len(i.Runts) >= minSize
 	}
 
 	// When right has no Children, then should not be in a position where left
@@ -222,7 +224,7 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 	copy(i.Children[index+1:], i.Children[index+2:])
 	i.Children = i.Children[:len(i.Children)-1]
 	// This node has one fewer Children.
-	return !(len(i.Runts) < minSize)
+	return len(i.Runts) >= minSize
 }
 
 func (i *genericInternalNode[K]) isInternal() bool { return true }
@@ -367,7 +369,7 @@ func (l *genericLeafNode[K]) deleteKey(minSize int, key K) bool {
 	copy(l.Values[index:], l.Values[index+1:])
 	l.Runts = l.Runts[:len(l.Runts)-1]
 	l.Values = l.Values[:len(l.Values)-1]
-	return !(len(l.Runts) < minSize)
+	return len(l.Runts) >= minSize
 }
 
 func (l *genericLeafNode[K]) isInternal() bool { return false }
