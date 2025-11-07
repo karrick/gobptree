@@ -147,7 +147,8 @@ func (left *genericInternalNode[K]) adoptFromRight(sibling genericNode[K]) {
 func (i *genericInternalNode[K]) count() int { return len(i.Runts) }
 
 // deleteKey removes key and its value from the node, returning true when the
-// node has fewer items than minSize, and returning false otherwise.
+// node has at least minSize elements after the deletion, and returning false
+// when the node has fewer elements than minSize.
 func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 	// Determine index of the child node where key would be stored.
 	index := searchLessThanOrEqualTo(key, i.Runts)
@@ -158,9 +159,10 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 	defer child.unlock()
 
 	// Delete the key from the child.
-	if !child.deleteKey(minSize, key) {
-		// Recall that deleteKey returns false when the child node has 
-		return false
+	if child.deleteKey(minSize, key) {
+		// Recall that deleteKey returns true when the child node has at least
+		// minSize elements after the deletion.
+		return true
 	}
 
 	// POST: child is too small; need to combine node with one of its
@@ -177,7 +179,7 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 		if rightCount = rightSibling.count(); rightCount > minSize {
 			child.adoptFromRight(rightSibling)
 			i.Runts[index+1] = rightSibling.smallest()
-			return false
+			return true
 		}
 	}
 	// POST: If right, it is exactly minimum size.
@@ -189,7 +191,7 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 		defer leftSibling.unlock()
 		if leftCount = leftSibling.count(); leftCount > minSize {
 			child.adoptFromLeft(leftSibling)
-			return false
+			return true
 		}
 	}
 	// POST: If left, it is exactly minimum size.
@@ -205,7 +207,7 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 		copy(i.Children[index:], i.Children[index+1:])
 		i.Children = i.Children[:len(i.Children)-1]
 		// This node has one fewer Children.
-		return len(i.Runts) < minSize
+		return !(len(i.Runts) < minSize)
 	}
 
 	// When right has no Children, then should not be in a position where left
@@ -220,7 +222,7 @@ func (i *genericInternalNode[K]) deleteKey(minSize int, key K) bool {
 	copy(i.Children[index+1:], i.Children[index+2:])
 	i.Children = i.Children[:len(i.Children)-1]
 	// This node has one fewer Children.
-	return len(i.Runts) < minSize
+	return !(len(i.Runts) < minSize)
 }
 
 func (i *genericInternalNode[K]) isInternal() bool { return true }
@@ -359,13 +361,13 @@ func (l *genericLeafNode[K]) count() int { return len(l.Runts) }
 func (l *genericLeafNode[K]) deleteKey(minSize int, key K) bool {
 	index := searchGreaterThanOrEqualTo(key, l.Runts)
 	if index == len(l.Runts) || key != l.Runts[index] {
-		return false
+		return true
 	}
 	copy(l.Runts[index:], l.Runts[index+1:])
 	copy(l.Values[index:], l.Values[index+1:])
 	l.Runts = l.Runts[:len(l.Runts)-1]
 	l.Values = l.Values[:len(l.Values)-1]
-	return len(l.Runts) < minSize
+	return !(len(l.Runts) < minSize)
 }
 
 func (l *genericLeafNode[K]) isInternal() bool { return false }
@@ -448,7 +450,7 @@ func (t *GenericTree[K]) Delete(key K) {
 	t.root.lock()
 	defer t.root.unlock()
 
-	if !t.root.deleteKey(t.order, key) || t.root.count() > 1 {
+	if t.root.deleteKey(t.order, key) || t.root.count() > 1 {
 		// Root is only too small when fewer than 2 Children
 		return
 	}
