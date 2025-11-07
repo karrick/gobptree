@@ -3,27 +3,13 @@ package gobptree
 import (
 	"cmp"
 	"fmt"
+	"math"
 	"testing"
 )
 
 ////////////////////////////////////////
 // test helpers to ensure two nodes match
 ////////////////////////////////////////
-
-func ensureItems[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want []any) {
-	t.Helper()
-
-	var got []any
-
-	scanner := tree.NewScannerAll()
-	for scanner.Scan() {
-		item, _ := scanner.Pair()
-		got = append(got, item)
-	}
-
-	ensureError(t, scanner.Close())
-	ensureSame(t, got, want)
-}
 
 func ensureInternalNodesMatch[K cmp.Ordered](t *testing.T, got, want *internalNode[K]) {
 	t.Helper()
@@ -73,7 +59,6 @@ func ensureLeafNodesMatch[K cmp.Ordered](t *testing.T, got, want *leafNode[K]) {
 	})
 
 	t.Run("Next", func(t *testing.T) {
-		t.Skip("FIXME")
 		ensureLeafNodesMatch(t, got.Next, want.Next)
 	})
 }
@@ -97,6 +82,21 @@ func ensureNodesMatch[K cmp.Ordered](t *testing.T, got, want node[K]) {
 	default:
 		t.Errorf("GOT: %T; WANT: node", got)
 	}
+}
+
+func ensureValues[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want []any) {
+	t.Helper()
+
+	var got []any
+
+	scanner := tree.NewScannerAll()
+	for scanner.Scan() {
+		item, _ := scanner.Pair()
+		got = append(got, item)
+	}
+
+	ensureError(t, scanner.Close())
+	ensureSame(t, got, want)
 }
 
 ////////////////////////////////////////
@@ -134,51 +134,51 @@ func newLeafFrom[K cmp.Ordered](next *leafNode[K], items ...K) *leafNode[K] {
 
 func TestGenericBinarySearch(t *testing.T) {
 	t.Run("skip Values", func(t *testing.T) {
-		Values := []int64{1, 3, 5, 7, 9, 11, 13}
+		values := []int64{1, 3, 5, 7, 9, 11, 13}
 
-		if got, want := searchGreaterThanOrEqualTo(0, Values), 0; got != want {
+		if got, want := searchGreaterThanOrEqualTo(0, values), 0; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(1, Values), 0; got != want {
+		if got, want := searchGreaterThanOrEqualTo(1, values), 0; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(2, Values), 1; got != want {
+		if got, want := searchGreaterThanOrEqualTo(2, values), 1; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(3, Values), 1; got != want {
+		if got, want := searchGreaterThanOrEqualTo(3, values), 1; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(4, Values), 2; got != want {
+		if got, want := searchGreaterThanOrEqualTo(4, values), 2; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(5, Values), 2; got != want {
+		if got, want := searchGreaterThanOrEqualTo(5, values), 2; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(6, Values), 3; got != want {
+		if got, want := searchGreaterThanOrEqualTo(6, values), 3; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(7, Values), 3; got != want {
+		if got, want := searchGreaterThanOrEqualTo(7, values), 3; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(8, Values), 4; got != want {
+		if got, want := searchGreaterThanOrEqualTo(8, values), 4; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(9, Values), 4; got != want {
+		if got, want := searchGreaterThanOrEqualTo(9, values), 4; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(10, Values), 5; got != want {
+		if got, want := searchGreaterThanOrEqualTo(10, values), 5; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(11, Values), 5; got != want {
+		if got, want := searchGreaterThanOrEqualTo(11, values), 5; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(12, Values), 6; got != want {
+		if got, want := searchGreaterThanOrEqualTo(12, values), 6; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(13, Values), 6; got != want {
+		if got, want := searchGreaterThanOrEqualTo(13, values), 6; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := searchGreaterThanOrEqualTo(14, Values), 6; got != want {
+		if got, want := searchGreaterThanOrEqualTo(14, values), 6; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 	})
@@ -386,7 +386,7 @@ func TestGenericInsertOrder2(t *testing.T) {
 		tree.Insert(1, 1)
 
 		t.Run("contents", func(t *testing.T) {
-			ensureItems(t, tree, []any{1})
+			ensureValues(t, tree, []any{1})
 		})
 
 		t.Run("structure", func(t *testing.T) {
@@ -398,7 +398,7 @@ func TestGenericInsertOrder2(t *testing.T) {
 		tree.Insert(2, 2)
 
 		t.Run("contents", func(t *testing.T) {
-			ensureItems(t, tree, []any{1, 2})
+			ensureValues(t, tree, []any{1, 2})
 		})
 
 		t.Run("structure", func(t *testing.T) {
@@ -410,7 +410,7 @@ func TestGenericInsertOrder2(t *testing.T) {
 		tree.Insert(3, 3)
 
 		t.Run("contents", func(t *testing.T) {
-			ensureItems(t, tree, []any{1, 2, 3})
+			ensureValues(t, tree, []any{1, 2, 3})
 		})
 
 		t.Run("structure", func(t *testing.T) {
@@ -435,7 +435,7 @@ func TestGenericInsertOrder2(t *testing.T) {
 		tree.Insert(4, 4)
 
 		t.Run("contents", func(t *testing.T) {
-			ensureItems(t, tree, []any{1, 2, 3, 4})
+			ensureValues(t, tree, []any{1, 2, 3, 4})
 		})
 
 		t.Run("structure", func(t *testing.T) {
@@ -472,7 +472,7 @@ func TestGenericInsertOrder2(t *testing.T) {
 		tree.Insert(5, 5)
 
 		t.Run("contents", func(t *testing.T) {
-			ensureItems(t, tree, []any{1, 2, 3, 4, 5})
+			ensureValues(t, tree, []any{1, 2, 3, 4, 5})
 		})
 
 		t.Run("structure", func(t *testing.T) {
@@ -914,76 +914,99 @@ func TestGenericLeafNodeMaybeSplit(t *testing.T) {
 func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 	t.Run("when fewer than order elements", func(t *testing.T) {
 		t.Run("when empty", func(t *testing.T) {
-			d, _ := NewGenericTree[int](4)
-			nl, ok := d.root.(*leafNode[int])
+			tree, err := NewGenericTree[int](4)
+			ensureError(t, err)
+
+			leaf, ok := tree.root.(*leafNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(30, 30)
-			ensureLeafNodesMatch(t, nl, newLeafFrom(nil, 30))
+
+			tree.Insert(30, 30)
+
+			ensureLeafNodesMatch(t, leaf, newLeafFrom(nil, 30))
 		})
 		t.Run("when less than first runt", func(t *testing.T) {
-			d, _ := NewGenericTree[int](4)
-			nl, ok := d.root.(*leafNode[int])
+			tree, err := NewGenericTree[int](4)
+			ensureError(t, err)
+
+			leaf, ok := tree.root.(*leafNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(30, 30)
-			d.Insert(10, 10)
-			ensureNodesMatch(t, nl, newLeafFrom(nil, 10, 30))
+
+			tree.Insert(30, 30)
+			tree.Insert(10, 10)
+
+			ensureNodesMatch(t, leaf, newLeafFrom(nil, 10, 30))
 		})
 		t.Run("when update value", func(t *testing.T) {
-			d, _ := NewGenericTree[int](4)
-			nl, ok := d.root.(*leafNode[int])
+			tree, err := NewGenericTree[int](4)
+			ensureError(t, err)
+
+			leaf, ok := tree.root.(*leafNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(30, 30)
-			d.Insert(10, 10)
-			d.Insert(30, 333)
-			ensureNodesMatch(t, nl, &leafNode[int]{
+
+			tree.Insert(30, 30)
+			tree.Insert(10, 10)
+			tree.Insert(30, 333)
+
+			ensureNodesMatch(t, leaf, &leafNode[int]{
 				Runts:  []int{10, 30},
 				Values: []any{10, 333},
 			})
 		})
 		t.Run("when between first and final runt", func(t *testing.T) {
-			d, _ := NewGenericTree[int](4)
-			nl, ok := d.root.(*leafNode[int])
+			tree, err := NewGenericTree[int](4)
+			ensureError(t, err)
+
+			leaf, ok := tree.root.(*leafNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(30, 30)
-			d.Insert(10, 10)
-			d.Insert(20, 20)
-			ensureNodesMatch(t, nl, newLeafFrom(nil, 10, 20, 30))
+
+			tree.Insert(30, 30)
+			tree.Insert(10, 10)
+			tree.Insert(20, 20)
+
+			ensureNodesMatch(t, leaf, newLeafFrom(nil, 10, 20, 30))
 		})
 		t.Run("when after final runt", func(t *testing.T) {
-			d, _ := NewGenericTree[int](4)
-			nl, ok := d.root.(*leafNode[int])
+			tree, err := NewGenericTree[int](4)
+			ensureError(t, err)
+
+			leaf, ok := tree.root.(*leafNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
-			d.Insert(30, 30)
-			d.Insert(10, 10)
-			d.Insert(20, 20)
-			d.Insert(40, 40)
-			ensureNodesMatch(t, nl, newLeafFrom(nil, 10, 20, 30, 40))
+
+			tree.Insert(30, 30)
+			tree.Insert(10, 10)
+			tree.Insert(20, 20)
+			tree.Insert(40, 40)
+
+			ensureNodesMatch(t, leaf, newLeafFrom(nil, 10, 20, 30, 40))
 		})
 	})
 
 	t.Run("when insertion splits single leaf node", func(t *testing.T) {
 		gimme := func() *GenericTree[int] {
-			d, _ := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int](4)
+			ensureError(t, err)
+
 			for _, v := range []int{10, 20, 30, 40} {
-				d.Insert(v, v)
+				tree.Insert(v, v)
 			}
-			return d
+
+			return tree
 		}
 		t.Run("when new key will be first node in left leaf", func(t *testing.T) {
-			d := gimme()
-			d.Insert(0, 0)
+			tree := gimme()
+			tree.Insert(0, 0)
 
-			root, ok := d.root.(*internalNode[int])
+			root, ok := tree.root.(*internalNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -1006,9 +1029,10 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			ensureNodesMatch(t, root.Children[1], newLeafFrom(nil, 30, 40))
 		})
 		t.Run("when new key is in middle", func(t *testing.T) {
-			d := gimme()
-			d.Insert(25, 25)
-			root, ok := d.root.(*internalNode[int])
+			tree := gimme()
+			tree.Insert(25, 25)
+
+			root, ok := tree.root.(*internalNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -1031,9 +1055,10 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			ensureNodesMatch(t, root.Children[1], newLeafFrom(nil, 30, 40))
 		})
 		t.Run("when new key will be final node in right leaf", func(t *testing.T) {
-			d := gimme()
-			d.Insert(50, 50)
-			root, ok := d.root.(*internalNode[int])
+			tree := gimme()
+			tree.Insert(50, 50)
+
+			root, ok := tree.root.(*internalNode[int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -1060,36 +1085,41 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 
 func TestGenericTreeSearch(t *testing.T) {
 	t.Run("empty tree", func(t *testing.T) {
-		d, _ := NewGenericTree[int](16)
+		tree, err := NewGenericTree[int](16)
+		ensureError(t, err)
 
-		_, ok := d.Search(13)
+		_, ok := tree.Search(13)
 		if got, want := ok, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 	})
 	t.Run("single-leaf tree", func(t *testing.T) {
 		t.Run("missing value", func(t *testing.T) {
-			d, _ := NewGenericTree[int](16)
+			tree, err := NewGenericTree[int](16)
+			ensureError(t, err)
+
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(i, i)
+					tree.Insert(i, i)
 				}
 			}
 
-			_, ok := d.Search(13)
+			_, ok := tree.Search(13)
 			if got, want := ok, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 		t.Run("existing value", func(t *testing.T) {
-			d, _ := NewGenericTree[int](16)
+			tree, err := NewGenericTree[int](16)
+			ensureError(t, err)
+
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(i, i)
+					tree.Insert(i, i)
 				}
 			}
 
-			value, ok := d.Search(8)
+			value, ok := tree.Search(8)
 			if got, want := ok, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -1100,27 +1130,31 @@ func TestGenericTreeSearch(t *testing.T) {
 	})
 	t.Run("multi-leaf tree", func(t *testing.T) {
 		t.Run("missing value", func(t *testing.T) {
-			d, _ := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int](4)
+			ensureError(t, err)
+
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(i, i)
+					tree.Insert(i, i)
 				}
 			}
 
-			_, ok := d.Search(13)
+			_, ok := tree.Search(13)
 			if got, want := ok, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		})
 		t.Run("existing value", func(t *testing.T) {
-			d, _ := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int](4)
+			ensureError(t, err)
+
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(i, i)
+					tree.Insert(i, i)
 				}
 			}
 
-			value, ok := d.Search(8)
+			value, ok := tree.Search(8)
 			if got, want := ok, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -1133,103 +1167,128 @@ func TestGenericTreeSearch(t *testing.T) {
 
 func TestGenericTreeCursor(t *testing.T) {
 	t.Run("empty tree", func(t *testing.T) {
-		var count int
+		t.Run("NewScanner", func(t *testing.T) {
+			var count int
 
-		d, _ := NewGenericTree[int](4)
-		c := d.NewScanner(0)
-		for c.Scan() {
-			count++
-		}
+			tree, err := NewGenericTree[int](4)
+			ensureError(t, err)
 
-		if got, want := count, 0; got != want {
-			t.Errorf("GOT: %v; WANT: %v", got, want)
-		}
-	})
-	t.Run("single-leaf tree", func(t *testing.T) {
-		t.Run("scan for zero-value element", func(t *testing.T) {
-			var Values []any
-
-			d, _ := NewGenericTree[int](16)
-			for i := 0; i < 15; i++ {
-				d.Insert(i, i)
+			cursor := tree.NewScanner(math.MinInt64)
+			for cursor.Scan() {
+				count++
 			}
 
-			c := d.NewScanner(0)
-			for c.Scan() {
-				_, v := c.Pair()
-				Values = append(Values, v)
+			if got, want := count, 0; got != want {
+				t.Errorf("GOT: %v; WANT: %v", got, want)
+			}
+		})
+		t.Run("NewScannerAll", func(t *testing.T) {
+			var count int
+
+			tree, err := NewGenericTree[int](4)
+			ensureError(t, err)
+
+			cursor := tree.NewScannerAll()
+			for cursor.Scan() {
+				count++
+			}
+
+			if got, want := count, 0; got != want {
+				t.Errorf("GOT: %v; WANT: %v", got, want)
+			}
+		})
+	})
+	t.Run("single-leaf tree", func(t *testing.T) {
+		t.Run("scan for minimum key", func(t *testing.T) {
+			var values []any
+
+			tree, err := NewGenericTree[int](16)
+			ensureError(t, err)
+
+			for i := 0; i < 15; i++ {
+				tree.Insert(i, i)
+			}
+
+			cursor := tree.NewScanner(math.MinInt64)
+			for cursor.Scan() {
+				_, v := cursor.Pair()
+				values = append(values, v)
 			}
 
 			expected := []any{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 
-			ensureSame(t, Values, expected)
+			ensureSame(t, values, expected)
 		})
 		t.Run("scan for missing element", func(t *testing.T) {
-			var Values []any
+			var values []any
 
-			d, _ := NewGenericTree[int](16)
+			tree, err := NewGenericTree[int](16)
+			ensureError(t, err)
+
 			for i := 0; i < 15; i++ {
 				if i != 13 {
-					d.Insert(i, i)
+					tree.Insert(i, i)
 				}
 			}
 
-			c := d.NewScanner(13)
-			for c.Scan() {
-				_, v := c.Pair()
-				Values = append(Values, v)
+			cursor := tree.NewScanner(13)
+			for cursor.Scan() {
+				_, v := cursor.Pair()
+				values = append(values, v)
 			}
 
-			expected := []any{14} // , 2, 3, 4, 5, 6, 7, 8, 9}
+			expected := []any{14}
 
-			ensureSame(t, Values, expected)
+			ensureSame(t, values, expected)
 		})
 		t.Run("scan for existing element", func(t *testing.T) {
-			var Values []any
+			var values []any
 
-			d, _ := NewGenericTree[int](16)
+			tree, err := NewGenericTree[int](16)
+			ensureError(t, err)
+
 			for i := 0; i < 15; i++ {
-				d.Insert(i, i)
+				tree.Insert(i, i)
 			}
 
-			c := d.NewScanner(13)
-			for c.Scan() {
-				_, v := c.Pair()
-				Values = append(Values, v)
+			cursor := tree.NewScanner(13)
+			for cursor.Scan() {
+				_, v := cursor.Pair()
+				values = append(values, v)
 			}
 
-			expected := []any{13, 14} // , 2, 3, 4, 5, 6, 7, 8, 9}
+			expected := []any{13, 14}
 
-			ensureSame(t, Values, expected)
+			ensureSame(t, values, expected)
 		})
 	})
 	t.Run("multi-leaf tree", func(t *testing.T) {
-		var Values []any
+		var values []any
 
-		d, _ := NewGenericTree[int](4)
+		tree, err := NewGenericTree[int](4)
+		ensureError(t, err)
+
 		for i := 0; i < 15; i++ {
-			d.Insert(i, i)
+			tree.Insert(i, i)
 		}
 
-		c := d.NewScanner(0)
-		for c.Scan() {
-			_, v := c.Pair()
-			Values = append(Values, v)
+		cursor := tree.NewScanner(math.MinInt64)
+		for cursor.Scan() {
+			_, v := cursor.Pair()
+			values = append(values, v)
 		}
 
-		expected := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
+		expected := []any{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 
-		for i := 0; i < len(Values) && i < len(expected); i++ {
-			if got, want := Values[i], expected[i]; got != want {
-				t.Errorf("GOT: %v; WANT: %v", got, want)
-			}
-		}
+		ensureSame(t, values, expected)
 	})
 }
 
 func TestGenericTreeUpdate(t *testing.T) {
-	d, _ := NewGenericTree[int](8)
-	d.Update(1, func(value interface{}, ok bool) interface{} {
+	tree, err := NewGenericTree[int](8)
+	ensureError(t, err)
+
+	tree.Update(1, func(value any, ok bool) any {
 		if got, want := ok, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
@@ -1238,7 +1297,8 @@ func TestGenericTreeUpdate(t *testing.T) {
 		}
 		return "first"
 	})
-	d.Update(1, func(value interface{}, ok bool) interface{} {
+
+	tree.Update(1, func(value any, ok bool) any {
 		if got, want := ok, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
@@ -1247,15 +1307,18 @@ func TestGenericTreeUpdate(t *testing.T) {
 		}
 		return "second"
 	})
-	value, ok := d.Search(1)
+
+	value, ok := tree.Search(1)
 	if got, want := ok, true; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
 	if got, want := value, "second"; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
-	d.Insert(3, 3)
-	d.Update(2, func(value interface{}, ok bool) interface{} {
+
+	tree.Insert(3, 3)
+
+	tree.Update(2, func(value any, ok bool) any {
 		if got, want := ok, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
@@ -1264,7 +1327,8 @@ func TestGenericTreeUpdate(t *testing.T) {
 		}
 		return "fourth"
 	})
-	value, ok = d.Search(2)
+
+	value, ok = tree.Search(2)
 	if got, want := ok, true; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
@@ -1276,90 +1340,90 @@ func TestGenericTreeUpdate(t *testing.T) {
 func TestGenericLeafNodeDelete(t *testing.T) {
 	t.Run("still big enough", func(t *testing.T) {
 		t.Run("key is missing", func(t *testing.T) {
-			l := &leafNode[int]{
+			leaf := &leafNode[int]{
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
-			bigEnough := l.deleteKey(2, 42)
+			bigEnough := leaf.deleteKey(2, 42)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, l, &leafNode[int]{
+			ensureNodesMatch(t, leaf, &leafNode[int]{
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			})
 		})
 		t.Run("key is first", func(t *testing.T) {
-			l := &leafNode[int]{
+			leaf := &leafNode[int]{
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
-			bigEnough := l.deleteKey(2, 11)
+			bigEnough := leaf.deleteKey(2, 11)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, l, &leafNode[int]{
+			ensureNodesMatch(t, leaf, &leafNode[int]{
 				Runts:  []int{21, 31},
 				Values: []any{21, 31},
 			})
 		})
 		t.Run("key is middle", func(t *testing.T) {
-			l := &leafNode[int]{
+			leaf := &leafNode[int]{
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
-			bigEnough := l.deleteKey(2, 21)
+			bigEnough := leaf.deleteKey(2, 21)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, l, &leafNode[int]{
+			ensureNodesMatch(t, leaf, &leafNode[int]{
 				Runts:  []int{11, 31},
 				Values: []any{11, 31},
 			})
 		})
 		t.Run("key is last", func(t *testing.T) {
-			l := &leafNode[int]{
+			leaf := &leafNode[int]{
 				Runts:  []int{11, 21, 31},
 				Values: []any{11, 21, 31},
 			}
-			bigEnough := l.deleteKey(2, 31)
+			bigEnough := leaf.deleteKey(2, 31)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, l, &leafNode[int]{
+			ensureNodesMatch(t, leaf, &leafNode[int]{
 				Runts:  []int{11, 21},
 				Values: []any{11, 21},
 			})
 		})
 	})
 	t.Run("will be too small", func(t *testing.T) {
-		l := newLeafFrom(nil, 11, 21, 31, 41)
-		bigEnough := l.deleteKey(4, 21)
+		leaf := newLeafFrom(nil, 11, 21, 31, 41)
+		bigEnough := leaf.deleteKey(4, 21)
 		if got, want := bigEnough, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		ensureNodesMatch(t, l, newLeafFrom(nil, 11, 31, 41))
+		ensureNodesMatch(t, leaf, newLeafFrom(nil, 11, 31, 41))
 	})
 }
 
 func TestGenericLeafNodeAdoptFrom(t *testing.T) {
 	t.Run("left", func(t *testing.T) {
-		r := newLeafFrom(nil, 5, 6, 7)
-		l := newLeafFrom(r, 0, 1, 2, 3, 4)
+		right := newLeafFrom(nil, 5, 6, 7)
+		left := newLeafFrom(right, 0, 1, 2, 3, 4)
 
-		r.adoptFromLeft(l)
+		right.adoptFromLeft(left)
 
-		ensureNodesMatch(t, l, newLeafFrom(r, 0, 1, 2, 3))
-		ensureNodesMatch(t, r, newLeafFrom(nil, 4, 5, 6, 7))
+		ensureNodesMatch(t, left, newLeafFrom(right, 0, 1, 2, 3))
+		ensureNodesMatch(t, right, newLeafFrom(nil, 4, 5, 6, 7))
 	})
 	t.Run("right", func(t *testing.T) {
-		r := newLeafFrom(nil, 3, 4, 5, 6, 7)
-		l := newLeafFrom(r, 0, 1, 2)
+		right := newLeafFrom(nil, 3, 4, 5, 6, 7)
+		left := newLeafFrom(right, 0, 1, 2)
 
-		l.adoptFromRight(r)
+		left.adoptFromRight(right)
 
-		ensureNodesMatch(t, l, newLeafFrom(r, 0, 1, 2, 3))
-		ensureNodesMatch(t, r, newLeafFrom(nil, 4, 5, 6, 7))
+		ensureNodesMatch(t, left, newLeafFrom(right, 0, 1, 2, 3))
+		ensureNodesMatch(t, right, newLeafFrom(nil, 4, 5, 6, 7))
 	})
 }
 
@@ -1440,7 +1504,9 @@ func TestGenericInternalNodeMergeWithRight(t *testing.T) {
 
 	left.absorbRight(right)
 
-	ensureInternalNodesMatch(t, left, newInternalFrom(leafA, leafB, leafC, leafD, leafE, leafF, leafG))
+	internal := newInternalFrom(leafA, leafB, leafC, leafD, leafE, leafF, leafG)
+
+	ensureInternalNodesMatch(t, left, internal)
 
 	if got, want := len(right.Runts), 0; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
@@ -1475,11 +1541,12 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 			internal := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
 
-			// NOTE: When leaf A starts with 4 elements, and test deletes 12
-			// from it, it will no longer have enough elements, and its
-			// remaining elements will be moved to other nodes. However, the
-			// internal node at the top will still have enough elements, and
-			// its return value will be true.
+			// NOTE: When leaf A starts with 4 elements, and test deletes the
+			// value 12 from it with a minimum node size of 4, the node will
+			// no longer have enough elements, and its remaining elements will
+			// be moved to other nodes. However, the internal node at the top
+			// will still have enough elements, and its return value will be
+			// true.
 			bigEnough := internal.deleteKey(4, 12)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
@@ -1728,26 +1795,24 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 func TestGenericDelete(t *testing.T) {
 	const order = 32
 
-	d, err := NewGenericTree[int](order)
-	if err != nil {
-		t.Fatal(err)
+	tree, err := NewGenericTree[int](order)
+	ensureError(t, err)
+
+	for _, v := range randomizedValues {
+		tree.Insert(v, v)
 	}
 
 	for _, v := range randomizedValues {
-		d.Insert(v, v)
-	}
-
-	for _, v := range randomizedValues {
-		if _, ok := d.Search(v); !ok {
+		if _, ok := tree.Search(v); !ok {
 			t.Fatalf("GOT: %v; WANT: %v", ok, true)
 		}
 	}
 
 	for _, v := range randomizedValues {
-		d.Delete(v)
+		tree.Delete(v)
 	}
 
 	t.Run("empty", func(t *testing.T) {
-		d.Delete(13)
+		tree.Delete(13)
 	})
 }
