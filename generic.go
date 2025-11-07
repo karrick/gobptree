@@ -835,8 +835,6 @@ func (c *GenericCursor[K]) Scan() bool {
 	if c.index++; c.index == len(c.leaf.Runts) {
 		n := c.leaf.Next
 		if n == nil {
-			// c.leaf.unlock()
-			// c.leaf = nil
 			return false
 		}
 		n.lock()
