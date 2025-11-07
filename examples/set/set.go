@@ -5,11 +5,11 @@ import (
 )
 
 type SyncSetInt64 struct {
-	tree *gobptree.Int64Tree
+	tree *gobptree.GenericTree[int64]
 }
 
 func NewSyncSetInt64() *SyncSetInt64 {
-	tree, _ := gobptree.NewInt64Tree(64)
+	tree, _ := gobptree.NewGenericTree[int64](64)
 	return &SyncSetInt64{tree: tree}
 }
 
@@ -24,7 +24,7 @@ func (s *SyncSetInt64) GetItems() []int64 {
 	return items
 }
 
-func updateTreeCallback(interface{}, bool) interface{} {
+func updateTreeCallback(any, bool) any {
 	return nil
 }
 
