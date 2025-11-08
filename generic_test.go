@@ -12,7 +12,7 @@ import (
 // test helpers to ensure two nodes match
 ////////////////////////////////////////
 
-func ensureInternalNodesMatch[K cmp.Ordered](t *testing.T, got, want *internalNode[K]) {
+func ensureInternalNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want *internalNode[K, V]) {
 	t.Helper()
 
 	if got == nil {
@@ -40,7 +40,7 @@ func ensureInternalNodesMatch[K cmp.Ordered](t *testing.T, got, want *internalNo
 	})
 }
 
-func ensureLeafNodesMatch[K cmp.Ordered](t *testing.T, got, want *leafNode[K]) {
+func ensureLeafNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want *leafNode[K, V]) {
 	t.Helper()
 
 	if got == nil {
@@ -68,28 +68,28 @@ func ensureLeafNodesMatch[K cmp.Ordered](t *testing.T, got, want *leafNode[K]) {
 	})
 }
 
-func ensureNodesMatch[K cmp.Ordered](t *testing.T, got, want node[K]) {
+func ensureNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want node[K, V]) {
 	t.Helper()
 
-	switch e := want.(type) {
-	case *internalNode[K]:
-		a, ok := got.(*internalNode[K])
+	switch w := want.(type) {
+	case *internalNode[K, V]:
+		g, ok := got.(*internalNode[K, V])
 		if !ok {
 			t.Errorf("GOT: %#v; WANT: %#v", got, want)
 		}
-		ensureInternalNodesMatch(t, a, e)
-	case *leafNode[K]:
-		a, ok := got.(*leafNode[K])
+		ensureInternalNodesMatch(t, g, w)
+	case *leafNode[K, V]:
+		g, ok := got.(*leafNode[K, V])
 		if !ok {
 			t.Errorf("GOT: %#v; WANT: %#v", got, want)
 		}
-		ensureLeafNodesMatch(t, a, e)
+		ensureLeafNodesMatch(t, g, w)
 	default:
-		t.Errorf("GOT: %#v; WANT: node", got)
+		t.Errorf("GOT: %#v; WANT: %#v", got, want)
 	}
 }
 
-func ensureTree[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want node[K]) {
+func ensureTree[K cmp.Ordered, V any](t *testing.T, tree *GenericTree[K, V], want node[K, V]) {
 	t.Helper()
 
 	// IMPORTANT: Must stitch before running following checks.
@@ -98,7 +98,7 @@ func ensureTree[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want node[K])
 	t.Run("values", func(t *testing.T) {
 		t.Helper()
 
-		var gotValues, wantValues []any
+		var gotValues, wantValues []V
 
 		// got values
 		scanner := tree.NewScannerAll()
@@ -125,29 +125,18 @@ func ensureTree[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want node[K])
 	})
 }
 
-func ensureStructure[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want node[K]) {
+func ensureValues[K cmp.Ordered, V any](t *testing.T, tree *GenericTree[K, V], want []V) {
 	t.Helper()
 
-	t.Run("structure", func(t *testing.T) {
+	t.Run("values", func(t *testing.T) {
 		t.Helper()
 
-		stitchNextValues(want, nil)
-		ensureNodesMatch(t, tree.root, want)
-	})
-}
-
-func ensureValues[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want []any) {
-	t.Helper()
-
-	t.Run("contents", func(t *testing.T) {
-		t.Helper()
-
-		var got []any
+		var got []V
 
 		scanner := tree.NewScannerAll()
 		for scanner.Scan() {
-			item, _ := scanner.Pair()
-			got = append(got, item)
+			_, value := scanner.Pair()
+			got = append(got, value)
 		}
 
 		ensureError(t, scanner.Close())
@@ -159,48 +148,10 @@ func ensureValues[K cmp.Ordered](t *testing.T, tree *GenericTree[K], want []any)
 // test helpers to create new internal and leaf nodes
 ////////////////////////////////////////
 
-func newInternalFrom[K cmp.Ordered](items ...node[K]) *internalNode[K] {
-	n := &internalNode[K]{
+func newInternal[K cmp.Ordered, V any](items ...node[K, V]) *internalNode[K, V] {
+	n := &internalNode[K, V]{
 		Runts:    make([]K, len(items)),
-		Children: make([]node[K], len(items)),
-	}
-	for i := 0; i < len(items); i++ {
-		n.Runts[i] = items[i].smallest()
-		n.Children[i] = items[i]
-	}
-	return n
-}
-
-func newLeafFrom[K cmp.Ordered](next *leafNode[K], items ...K) *leafNode[K] {
-	n := &leafNode[K]{
-		Runts:  make([]K, len(items)),
-		Values: make([]any, len(items)),
-		Next:   next,
-	}
-	for i := 0; i < len(items); i++ {
-		n.Runts[i] = items[i]
-		n.Values[i] = items[i]
-	}
-	return n
-}
-
-func newLeaf[K cmp.Ordered](items ...K) *leafNode[K] {
-	n := &leafNode[K]{
-		Runts:  make([]K, len(items)),
-		Values: make([]any, len(items)),
-		Next:   nil,
-	}
-	for i := 0; i < len(items); i++ {
-		n.Runts[i] = items[i]
-		n.Values[i] = items[i]
-	}
-	return n
-}
-
-func newInternal[K cmp.Ordered](items ...node[K]) *internalNode[K] {
-	n := &internalNode[K]{
-		Runts:    make([]K, len(items)),
-		Children: make([]node[K], len(items)),
+		Children: make([]node[K, V], len(items)),
 	}
 	for i := 0; i < len(items); i++ {
 		n.Runts[i] = items[i].smallest()
@@ -211,19 +162,19 @@ func newInternal[K cmp.Ordered](items ...node[K]) *internalNode[K] {
 
 // stitchNextValues recursively walks the tree starting at n and setting the
 // leaf node next fields, then returns the first leaf node in the tree branch.
-func stitchNextValues[K cmp.Ordered](n node[K], nextLeaf *leafNode[K]) *leafNode[K] {
+func stitchNextValues[K cmp.Ordered, V any](n node[K, V], nextLeaf *leafNode[K, V]) *leafNode[K, V] {
 	switch tv := n.(type) {
-	case *internalNode[K]:
+	case *internalNode[K, V]:
 		// Enumerate from the final to the first child.
 		for i := len(tv.Children) - 1; i >= 0; i-- {
 			nextLeaf = stitchNextValues(tv.Children[i], nextLeaf)
 		}
 		return nextLeaf
-	case *leafNode[K]:
+	case *leafNode[K, V]:
 		tv.Next = nextLeaf
 		return tv
 	default:
-		panic(fmt.Errorf("GOT: %#v; WANT: node[K]", n))
+		panic(fmt.Errorf("GOT: %#v; WANT: node[K,V]", n))
 	}
 }
 
@@ -429,7 +380,7 @@ func TestGenericBinarySearch(t *testing.T) {
 
 func TestNewGenericTreeReturnsErrorWhenInvalidOrder(t *testing.T) {
 	for _, v := range []int{0, -1, 1, 3, 11} {
-		_, err := NewGenericTree[int](v)
+		_, err := NewGenericTree[int, int](v)
 		if err == nil {
 			ensureError(t, err, fmt.Sprintf("multiple of 2: %d", v))
 		}
@@ -437,12 +388,26 @@ func TestNewGenericTreeReturnsErrorWhenInvalidOrder(t *testing.T) {
 }
 
 func TestGenericInternalNodeMaybeSplit(t *testing.T) {
-	leafD := newLeafFrom(nil, 40, 41, 42, 43)
-	leafC := newLeafFrom(leafD, 30, 31, 32, 33)
-	leafB := newLeafFrom(leafC, 20, 21, 22, 23)
-	leafA := newLeafFrom(leafB, 10, 11, 12, 13)
-
-	internal := newInternalFrom(leafA, leafB, leafC, leafD)
+	leafD := &leafNode[int, int]{
+		Runts:  []int{40, 41, 42, 43},
+		Values: []int{40, 41, 42, 43},
+	}
+	leafC := &leafNode[int, int]{
+		Runts:  []int{30, 31, 32, 33},
+		Values: []int{30, 31, 32, 33},
+		Next:   leafD,
+	}
+	leafB := &leafNode[int, int]{
+		Runts:  []int{20, 21, 22, 23},
+		Values: []int{20, 21, 22, 23},
+		Next:   leafC,
+	}
+	leafA := &leafNode[int, int]{
+		Runts:  []int{10, 11, 12, 13},
+		Values: []int{10, 11, 12, 13},
+		Next:   leafB,
+	}
+	internal := newInternal(leafA, leafB, leafC, leafD)
 
 	t.Run("does nothing when not full", func(t *testing.T) {
 		_, right := internal.maybeSplit(6)
@@ -452,8 +417,8 @@ func TestGenericInternalNodeMaybeSplit(t *testing.T) {
 	})
 
 	t.Run("splits when full", func(t *testing.T) {
-		wantLeft := newInternalFrom(leafA, leafB)
-		wantRight := newInternalFrom(leafC, leafD)
+		wantLeft := newInternal(leafA, leafB)
+		wantRight := newInternal(leafC, leafD)
 
 		gotLeft, gotRight := internal.maybeSplit(4)
 
@@ -463,12 +428,18 @@ func TestGenericInternalNodeMaybeSplit(t *testing.T) {
 }
 
 func TestGenericInternalNodeInsertSmallerKey(t *testing.T) {
-	leafB := newLeafFrom(nil, 21, 22)
-	leafA := newLeafFrom(leafB, 12, 13)
+	leafB := &leafNode[int, int]{
+		Runts:  []int{21, 22},
+		Values: []int{21, 22},
+	}
+	leafA := &leafNode[int, int]{
+		Runts:  []int{11, 12},
+		Values: []int{11, 12},
+		Next:   leafB,
+	}
+	internal := newInternal(leafA, leafB)
 
-	internal := newInternalFrom(leafA, leafB)
-
-	tree := &GenericTree[int]{root: internal, order: 4}
+	tree := &GenericTree[int, int]{root: internal, order: 4}
 
 	tree.Insert(11, 11)
 
@@ -478,19 +449,29 @@ func TestGenericInternalNodeInsertSmallerKey(t *testing.T) {
 }
 
 func TestGenericInsertOrder2(t *testing.T) {
-	tree, err := NewGenericTree[int](2)
+	tree, err := NewGenericTree[int, int](2)
 	ensureError(t, err)
 
 	t.Run("1", func(t *testing.T) {
 		tree.Insert(1, 1)
 
-		ensureTree(t, tree, newLeaf(1))
+		want := &leafNode[int, int]{
+			Runts:  []int{1},
+			Values: []int{1},
+		}
+
+		ensureTree(t, tree, want)
 	})
 
 	t.Run("2", func(t *testing.T) {
 		tree.Insert(2, 2)
 
-		ensureTree(t, tree, newLeaf(1, 2))
+		want := &leafNode[int, int]{
+			Runts:  []int{1, 2},
+			Values: []int{1, 2},
+		}
+
+		ensureTree(t, tree, want)
 	})
 
 	t.Run("3", func(t *testing.T) {
@@ -498,8 +479,14 @@ func TestGenericInsertOrder2(t *testing.T) {
 
 		ensureTree(t, tree,
 			newInternal(
-				newLeaf(1),
-				newLeaf(2, 3),
+				&leafNode[int, int]{
+					Runts:  []int{1},
+					Values: []int{1},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{2, 3},
+					Values: []int{2, 3},
+				},
 			),
 		)
 	})
@@ -510,11 +497,20 @@ func TestGenericInsertOrder2(t *testing.T) {
 		ensureTree(t, tree,
 			newInternal(
 				newInternal(
-					newLeaf(1),
+					&leafNode[int, int]{
+						Runts:  []int{1},
+						Values: []int{1},
+					},
 				),
 				newInternal(
-					newLeaf(2),
-					newLeaf(3, 4),
+					&leafNode[int, int]{
+						Runts:  []int{2},
+						Values: []int{2},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{3, 4},
+						Values: []int{3, 4},
+					},
 				),
 			),
 		)
@@ -527,16 +523,28 @@ func TestGenericInsertOrder2(t *testing.T) {
 			newInternal(
 				newInternal(
 					newInternal(
-						newLeaf(1),
+						&leafNode[int, int]{
+							Runts:  []int{1},
+							Values: []int{1},
+						},
 					),
 				),
 				newInternal(
 					newInternal(
-						newLeaf(2),
+						&leafNode[int, int]{
+							Runts:  []int{2},
+							Values: []int{2},
+						},
 					),
 					newInternal(
-						newLeaf(3),
-						newLeaf(4, 5),
+						&leafNode[int, int]{
+							Runts:  []int{3},
+							Values: []int{3},
+						},
+						&leafNode[int, int]{
+							Runts:  []int{4, 5},
+							Values: []int{4, 5},
+						},
 					),
 				),
 			),
@@ -552,7 +560,10 @@ func TestGenericInsertOrder2(t *testing.T) {
 				newInternal(
 					newInternal(
 						newInternal(
-							newLeaf(1),
+							&leafNode[int, int]{
+								Runts:  []int{1},
+								Values: []int{1},
+							},
 						),
 					),
 				),
@@ -560,16 +571,28 @@ func TestGenericInsertOrder2(t *testing.T) {
 					newInternal(
 						newInternal(
 							newInternal(
-								newLeaf(2),
+								&leafNode[int, int]{
+									Runts:  []int{2},
+									Values: []int{2},
+								},
 							),
 						),
 						newInternal(
 							newInternal(
-								newLeaf(3),
+								&leafNode[int, int]{
+									Runts:  []int{3},
+									Values: []int{3},
+								},
 							),
 							newInternal(
-								newLeaf(4),
-								newLeaf(5, 6),
+								&leafNode[int, int]{
+									Runts:  []int{4},
+									Values: []int{4},
+								},
+								&leafNode[int, int]{
+									Runts:  []int{5, 6},
+									Values: []int{5, 6},
+								},
 							),
 						),
 					),
@@ -580,27 +603,39 @@ func TestGenericInsertOrder2(t *testing.T) {
 }
 
 func TestGenericInsertOrder4(t *testing.T) {
-	tree, err := NewGenericTree[int](4)
+	tree, err := NewGenericTree[int, int](4)
 	ensureError(t, err)
 
 	t.Run("1", func(t *testing.T) {
 		tree.Insert(1, 1)
-		ensureTree(t, tree, newLeaf(1))
+		ensureTree(t, tree, &leafNode[int, int]{
+			Runts:  []int{1},
+			Values: []int{1},
+		})
 	})
 
 	t.Run("2", func(t *testing.T) {
 		tree.Insert(2, 2)
-		ensureTree(t, tree, newLeaf(1, 2))
+		ensureTree(t, tree, &leafNode[int, int]{
+			Runts:  []int{1, 2},
+			Values: []int{1, 2},
+		})
 	})
 
 	t.Run("3", func(t *testing.T) {
 		tree.Insert(3, 3)
-		ensureTree(t, tree, newLeaf(1, 2, 3))
+		ensureTree(t, tree, &leafNode[int, int]{
+			Runts:  []int{1, 2, 3},
+			Values: []int{1, 2, 3},
+		})
 	})
 
 	t.Run("4", func(t *testing.T) {
 		tree.Insert(4, 4)
-		ensureTree(t, tree, newLeaf(1, 2, 3, 4))
+		ensureTree(t, tree, &leafNode[int, int]{
+			Runts:  []int{1, 2, 3, 4},
+			Values: []int{1, 2, 3, 4},
+		})
 	})
 
 	t.Run("5", func(t *testing.T) {
@@ -608,8 +643,14 @@ func TestGenericInsertOrder4(t *testing.T) {
 
 		ensureTree(t, tree,
 			newInternal(
-				newLeaf(1, 2),
-				newLeaf(3, 4, 5),
+				&leafNode[int, int]{
+					Runts:  []int{1, 2},
+					Values: []int{1, 2},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{3, 4, 5},
+					Values: []int{3, 4, 5},
+				},
 			),
 		)
 	})
@@ -619,8 +660,14 @@ func TestGenericInsertOrder4(t *testing.T) {
 
 		ensureTree(t, tree,
 			newInternal(
-				newLeaf(1, 2),
-				newLeaf(3, 4, 5, 6),
+				&leafNode[int, int]{
+					Runts:  []int{1, 2},
+					Values: []int{1, 2},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{3, 4, 5, 6},
+					Values: []int{3, 4, 5, 6},
+				},
 			),
 		)
 	})
@@ -630,9 +677,18 @@ func TestGenericInsertOrder4(t *testing.T) {
 
 		ensureTree(t, tree,
 			newInternal(
-				newLeaf(1, 2),
-				newLeaf(3, 4),
-				newLeaf(5, 6, 7),
+				&leafNode[int, int]{
+					Runts:  []int{1, 2},
+					Values: []int{1, 2},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{3, 4},
+					Values: []int{3, 4},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{5, 6, 7},
+					Values: []int{5, 6, 7},
+				},
 			),
 		)
 	})
@@ -642,9 +698,18 @@ func TestGenericInsertOrder4(t *testing.T) {
 
 		ensureTree(t, tree,
 			newInternal(
-				newLeaf(1, 2),
-				newLeaf(3, 4),
-				newLeaf(5, 6, 7, 8),
+				&leafNode[int, int]{
+					Runts:  []int{1, 2},
+					Values: []int{1, 2},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{3, 4},
+					Values: []int{3, 4},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{5, 6, 7, 8},
+					Values: []int{5, 6, 7, 8},
+				},
 			),
 		)
 	})
@@ -654,10 +719,22 @@ func TestGenericInsertOrder4(t *testing.T) {
 
 		ensureTree(t, tree,
 			newInternal(
-				newLeaf(1, 2),
-				newLeaf(3, 4),
-				newLeaf(5, 6),
-				newLeaf(7, 8, 9),
+				&leafNode[int, int]{
+					Runts:  []int{1, 2},
+					Values: []int{1, 2},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{3, 4},
+					Values: []int{3, 4},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{5, 6},
+					Values: []int{5, 6},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{7, 8, 9},
+					Values: []int{7, 8, 9},
+				},
 			),
 		)
 	})
@@ -668,12 +745,24 @@ func TestGenericInsertOrder4(t *testing.T) {
 		ensureTree(t, tree,
 			newInternal(
 				newInternal(
-					newLeaf(1, 2),
-					newLeaf(3, 4),
+					&leafNode[int, int]{
+						Runts:  []int{1, 2},
+						Values: []int{1, 2},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{3, 4},
+						Values: []int{3, 4},
+					},
 				),
 				newInternal(
-					newLeaf(5, 6),
-					newLeaf(7, 8, 9, 10),
+					&leafNode[int, int]{
+						Runts:  []int{5, 6},
+						Values: []int{5, 6},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{7, 8, 9, 10},
+						Values: []int{7, 8, 9, 10},
+					},
 				),
 			),
 		)
@@ -685,13 +774,28 @@ func TestGenericInsertOrder4(t *testing.T) {
 		ensureTree(t, tree,
 			newInternal(
 				newInternal(
-					newLeaf(1, 2),
-					newLeaf(3, 4),
+					&leafNode[int, int]{
+						Runts:  []int{1, 2},
+						Values: []int{1, 2},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{3, 4},
+						Values: []int{3, 4},
+					},
 				),
 				newInternal(
-					newLeaf(5, 6),
-					newLeaf(7, 8),
-					newLeaf(9, 10, 11),
+					&leafNode[int, int]{
+						Runts:  []int{5, 6},
+						Values: []int{5, 6},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{7, 8},
+						Values: []int{7, 8},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{9, 10, 11},
+						Values: []int{9, 10, 11},
+					},
 				),
 			),
 		)
@@ -703,13 +807,28 @@ func TestGenericInsertOrder4(t *testing.T) {
 		ensureTree(t, tree,
 			newInternal(
 				newInternal(
-					newLeaf(1, 2),
-					newLeaf(3, 4),
+					&leafNode[int, int]{
+						Runts:  []int{1, 2},
+						Values: []int{1, 2},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{3, 4},
+						Values: []int{3, 4},
+					},
 				),
 				newInternal(
-					newLeaf(5, 6),
-					newLeaf(7, 8),
-					newLeaf(9, 10, 11, 12),
+					&leafNode[int, int]{
+						Runts:  []int{5, 6},
+						Values: []int{5, 6},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{7, 8},
+						Values: []int{7, 8},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{9, 10, 11, 12},
+						Values: []int{9, 10, 11, 12},
+					},
 				),
 			),
 		)
@@ -721,14 +840,32 @@ func TestGenericInsertOrder4(t *testing.T) {
 		ensureTree(t, tree,
 			newInternal(
 				newInternal(
-					newLeaf(1, 2),
-					newLeaf(3, 4),
+					&leafNode[int, int]{
+						Runts:  []int{1, 2},
+						Values: []int{1, 2},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{3, 4},
+						Values: []int{3, 4},
+					},
 				),
 				newInternal(
-					newLeaf(5, 6),
-					newLeaf(7, 8),
-					newLeaf(9, 10),
-					newLeaf(11, 12, 13),
+					&leafNode[int, int]{
+						Runts:  []int{5, 6},
+						Values: []int{5, 6},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{7, 8},
+						Values: []int{7, 8},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{9, 10},
+						Values: []int{9, 10},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{11, 12, 13},
+						Values: []int{11, 12, 13},
+					},
 				),
 			),
 		)
@@ -742,31 +879,49 @@ func TestGenericInsertOrder4(t *testing.T) {
 		// ensureTree(t, tree,
 		// 	newInternal(
 		// 		newInternal(
-		// 			newLeaf(1, 2),
-		// 			newLeaf(3, 4),
+		// 			newLeaf[int,int](1, 2),
+		// 			newLeaf[int,int](3, 4),
 		// 		),
 		// 		newInternal(
-		// 			newLeaf(5, 6),
-		// 			newLeaf(7, 8),
-		// 			newLeaf(9, 10),
-		// 			newLeaf(11, 12, 13),
+		// 			newLeaf[int,int](5, 6),
+		// 			newLeaf[int,int](7, 8),
+		// 			newLeaf[int,int](9, 10),
+		// 			newLeaf[int,int](11, 12, 13),
 		// 		),
 		// 	),
 		// )
 		ensureTree(t, tree,
 			newInternal(
 				newInternal(
-					newLeaf(1, 2),
-					newLeaf(3, 4),
+					&leafNode[int, int]{
+						Runts:  []int{1, 2},
+						Values: []int{1, 2},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{3, 4},
+						Values: []int{3, 4},
+					},
 				),
 				newInternal(
 					newInternal(
-						newLeaf(5, 6),
-						newLeaf(7, 8),
+						&leafNode[int, int]{
+							Runts:  []int{5, 6},
+							Values: []int{5, 6},
+						},
+						&leafNode[int, int]{
+							Runts:  []int{7, 8},
+							Values: []int{7, 8},
+						},
 					),
 					newInternal(
-						newLeaf(9, 10),
-						newLeaf(11, 12, 13, 14),
+						&leafNode[int, int]{
+							Runts:  []int{9, 10},
+							Values: []int{9, 10},
+						},
+						&leafNode[int, int]{
+							Runts:  []int{11, 12, 13, 14},
+							Values: []int{11, 12, 13, 14},
+						},
 					),
 				),
 			),
@@ -775,9 +930,18 @@ func TestGenericInsertOrder4(t *testing.T) {
 }
 
 func TestGenericLeafNodeMaybeSplit(t *testing.T) {
-	gimme := func() (*leafNode[int], *leafNode[int]) {
-		leafB := newLeafFrom(nil, 21, 22, 23, 24)
-		leafA := newLeafFrom(leafB, 11, 12, 13, 14)
+	gimme := func() (*leafNode[int, int], *leafNode[int, int]) {
+		// leafB := newLeafFrom[int, int](nil, 21, 22, 23, 24)
+		leafB := &leafNode[int, int]{
+			Runts:  []int{21, 22, 23, 24},
+			Values: []int{21, 22, 23, 24},
+		}
+		// leafA := newLeafFrom[int, int](leafB, 11, 12, 13, 14)
+		leafA := &leafNode[int, int]{
+			Runts:  []int{11, 12, 13, 14},
+			Values: []int{11, 12, 13, 14},
+			Next:   leafB,
+		}
 		return leafA, leafB
 	}
 
@@ -792,40 +956,63 @@ func TestGenericLeafNodeMaybeSplit(t *testing.T) {
 	t.Run("splits non-right edge when full", func(t *testing.T) {
 		leafA, leafB := gimme()
 		leftNode, rightNode := leafA.maybeSplit(4)
-		ensureNodesMatch(t, leftNode, newLeafFrom(rightNode.(*leafNode[int]), 11, 12))
-		ensureNodesMatch(t, rightNode, newLeafFrom(leafB, 13, 14))
+
+		ensureNodesMatch(t, leftNode, &leafNode[int, int]{
+			Runts:  []int{11, 12},
+			Values: []int{11, 12},
+			Next:   rightNode.(*leafNode[int, int]),
+		})
+
+		ensureNodesMatch(t, rightNode, &leafNode[int, int]{
+			Runts:  []int{13, 14},
+			Values: []int{13, 14},
+			Next:   leafB,
+		})
 	})
 	t.Run("splits right edge when full", func(t *testing.T) {
 		leafA, leafB := gimme()
 		leftNode, rightNode := leafB.maybeSplit(4)
+
 		if got, want := leafA.Next, leftNode; got != want {
 			t.Fatalf("GOT: %v; WANT: %v", got, want)
 		}
-		ensureNodesMatch(t, leftNode, newLeafFrom(rightNode.(*leafNode[int]), 21, 22))
-		ensureNodesMatch(t, rightNode, newLeafFrom(nil, 23, 24))
+
+		ensureNodesMatch(t, leftNode, &leafNode[int, int]{
+			Runts:  []int{21, 22},
+			Values: []int{21, 22},
+			Next:   rightNode.(*leafNode[int, int]),
+		})
+
+		ensureNodesMatch(t, rightNode, &leafNode[int, int]{
+			Runts:  []int{23, 24},
+			Values: []int{23, 24},
+		})
 	})
 }
 
 func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 	t.Run("when fewer than order elements", func(t *testing.T) {
 		t.Run("when empty", func(t *testing.T) {
-			tree, err := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int, int](4)
 			ensureError(t, err)
 
-			leaf, ok := tree.root.(*leafNode[int])
+			leaf, ok := tree.root.(*leafNode[int, int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
 
 			tree.Insert(30, 30)
 
-			ensureLeafNodesMatch(t, leaf, newLeafFrom(nil, 30))
+			ensureLeafNodesMatch(t, leaf, &leafNode[int, int]{
+				Runts:  []int{30},
+				Values: []int{30},
+			})
 		})
 		t.Run("when less than first runt", func(t *testing.T) {
-			tree, err := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int, int](4)
 			ensureError(t, err)
 
-			leaf, ok := tree.root.(*leafNode[int])
+			leaf, ok := tree.root.(*leafNode[int, int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
@@ -833,13 +1020,16 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			tree.Insert(30, 30)
 			tree.Insert(10, 10)
 
-			ensureNodesMatch(t, leaf, newLeafFrom(nil, 10, 30))
+			ensureNodesMatch(t, leaf, &leafNode[int, int]{
+				Runts:  []int{10, 30},
+				Values: []int{10, 30},
+			})
 		})
 		t.Run("when update value", func(t *testing.T) {
-			tree, err := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int, int](4)
 			ensureError(t, err)
 
-			leaf, ok := tree.root.(*leafNode[int])
+			leaf, ok := tree.root.(*leafNode[int, int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
@@ -848,16 +1038,16 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			tree.Insert(10, 10)
 			tree.Insert(30, 333)
 
-			ensureNodesMatch(t, leaf, &leafNode[int]{
+			ensureNodesMatch(t, leaf, &leafNode[int, int]{
 				Runts:  []int{10, 30},
-				Values: []any{10, 333},
+				Values: []int{10, 333},
 			})
 		})
 		t.Run("when between first and final runt", func(t *testing.T) {
-			tree, err := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int, int](4)
 			ensureError(t, err)
 
-			leaf, ok := tree.root.(*leafNode[int])
+			leaf, ok := tree.root.(*leafNode[int, int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
@@ -866,13 +1056,16 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			tree.Insert(10, 10)
 			tree.Insert(20, 20)
 
-			ensureNodesMatch(t, leaf, newLeafFrom(nil, 10, 20, 30))
+			ensureNodesMatch(t, leaf, &leafNode[int, int]{
+				Runts:  []int{10, 20, 30},
+				Values: []int{10, 20, 30},
+			})
 		})
 		t.Run("when after final runt", func(t *testing.T) {
-			tree, err := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int, int](4)
 			ensureError(t, err)
 
-			leaf, ok := tree.root.(*leafNode[int])
+			leaf, ok := tree.root.(*leafNode[int, int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, false)
 			}
@@ -882,13 +1075,16 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			tree.Insert(20, 20)
 			tree.Insert(40, 40)
 
-			ensureNodesMatch(t, leaf, newLeafFrom(nil, 10, 20, 30, 40))
+			ensureNodesMatch(t, leaf, &leafNode[int, int]{
+				Runts:  []int{10, 20, 30, 40},
+				Values: []int{10, 20, 30, 40},
+			})
 		})
 	})
 
 	t.Run("when insertion splits single leaf node", func(t *testing.T) {
-		gimme := func() *GenericTree[int] {
-			tree, err := NewGenericTree[int](4)
+		gimme := func() *GenericTree[int, int] {
+			tree, err := NewGenericTree[int, int](4)
 			ensureError(t, err)
 
 			for _, v := range []int{10, 20, 30, 40} {
@@ -901,7 +1097,7 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			tree := gimme()
 			tree.Insert(0, 0)
 
-			root, ok := tree.root.(*internalNode[int])
+			root, ok := tree.root.(*internalNode[int, int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -916,18 +1112,27 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			if got, want := root.Runts[0], 0; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, root.Children[0], newLeafFrom(root.Children[1].(*leafNode[int]), 0, 10, 20))
+
+			ensureNodesMatch(t, root.Children[0], &leafNode[int, int]{
+				Runts:  []int{0, 10, 20},
+				Values: []int{0, 10, 20},
+				Next:   root.Children[1].(*leafNode[int, int]),
+			})
 
 			if got, want := root.Runts[1], 30; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, root.Children[1], newLeafFrom(nil, 30, 40))
+
+			ensureNodesMatch(t, root.Children[1], &leafNode[int, int]{
+				Runts:  []int{30, 40},
+				Values: []int{30, 40},
+			})
 		})
 		t.Run("when new key is in middle", func(t *testing.T) {
 			tree := gimme()
 			tree.Insert(25, 25)
 
-			root, ok := tree.root.(*internalNode[int])
+			root, ok := tree.root.(*internalNode[int, int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -942,18 +1147,27 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			if got, want := root.Runts[0], 10; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, root.Children[0], newLeafFrom(root.Children[1].(*leafNode[int]), 10, 20, 25))
+
+			ensureNodesMatch(t, root.Children[0], &leafNode[int, int]{
+				Runts:  []int{10, 20, 25},
+				Values: []int{10, 20, 25},
+				Next:   root.Children[1].(*leafNode[int, int]),
+			})
 
 			if got, want := root.Runts[1], 30; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, root.Children[1], newLeafFrom(nil, 30, 40))
+
+			ensureNodesMatch(t, root.Children[1], &leafNode[int, int]{
+				Runts:  []int{30, 40},
+				Values: []int{30, 40},
+			})
 		})
 		t.Run("when new key will be final node in right leaf", func(t *testing.T) {
 			tree := gimme()
 			tree.Insert(50, 50)
 
-			root, ok := tree.root.(*internalNode[int])
+			root, ok := tree.root.(*internalNode[int, int])
 			if !ok {
 				t.Fatalf("GOT: %v; WANT: %v", ok, true)
 			}
@@ -968,19 +1182,28 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 			if got, want := root.Runts[0], 10; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, root.Children[0], newLeafFrom(root.Children[1].(*leafNode[int]), 10, 20))
+
+			ensureNodesMatch(t, root.Children[0], &leafNode[int, int]{
+				Runts:  []int{10, 20},
+				Values: []int{10, 20},
+				Next:   root.Children[1].(*leafNode[int, int]),
+			})
 
 			if got, want := root.Runts[1], 30; got != want {
 				t.Fatalf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, root.Children[1], newLeafFrom(nil, 30, 40, 50))
+
+			ensureNodesMatch(t, root.Children[1], &leafNode[int, int]{
+				Runts:  []int{30, 40, 50},
+				Values: []int{30, 40, 50},
+			})
 		})
 	})
 }
 
 func TestGenericTreeSearch(t *testing.T) {
 	t.Run("empty tree", func(t *testing.T) {
-		tree, err := NewGenericTree[int](16)
+		tree, err := NewGenericTree[int, int](16)
 		ensureError(t, err)
 
 		_, ok := tree.Search(13)
@@ -990,7 +1213,7 @@ func TestGenericTreeSearch(t *testing.T) {
 	})
 	t.Run("single-leaf tree", func(t *testing.T) {
 		t.Run("missing value", func(t *testing.T) {
-			tree, err := NewGenericTree[int](16)
+			tree, err := NewGenericTree[int, int](16)
 			ensureError(t, err)
 
 			for i := 0; i < 15; i++ {
@@ -1005,7 +1228,7 @@ func TestGenericTreeSearch(t *testing.T) {
 			}
 		})
 		t.Run("existing value", func(t *testing.T) {
-			tree, err := NewGenericTree[int](16)
+			tree, err := NewGenericTree[int, int](16)
 			ensureError(t, err)
 
 			for i := 0; i < 15; i++ {
@@ -1025,7 +1248,7 @@ func TestGenericTreeSearch(t *testing.T) {
 	})
 	t.Run("multi-leaf tree", func(t *testing.T) {
 		t.Run("missing value", func(t *testing.T) {
-			tree, err := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int, int](4)
 			ensureError(t, err)
 
 			for i := 0; i < 15; i++ {
@@ -1040,7 +1263,7 @@ func TestGenericTreeSearch(t *testing.T) {
 			}
 		})
 		t.Run("existing value", func(t *testing.T) {
-			tree, err := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int, int](4)
 			ensureError(t, err)
 
 			for i := 0; i < 15; i++ {
@@ -1065,7 +1288,7 @@ func TestGenericTreeCursor(t *testing.T) {
 		t.Run("NewScanner", func(t *testing.T) {
 			var count int
 
-			tree, err := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int, int](4)
 			ensureError(t, err)
 
 			cursor := tree.NewScanner(math.MinInt64)
@@ -1080,7 +1303,7 @@ func TestGenericTreeCursor(t *testing.T) {
 		t.Run("NewScannerAll", func(t *testing.T) {
 			var count int
 
-			tree, err := NewGenericTree[int](4)
+			tree, err := NewGenericTree[int, int](4)
 			ensureError(t, err)
 
 			cursor := tree.NewScannerAll()
@@ -1097,7 +1320,7 @@ func TestGenericTreeCursor(t *testing.T) {
 		t.Run("scan for minimum key", func(t *testing.T) {
 			var values []any
 
-			tree, err := NewGenericTree[int](16)
+			tree, err := NewGenericTree[int, int](16)
 			ensureError(t, err)
 
 			for i := 0; i < 15; i++ {
@@ -1117,7 +1340,7 @@ func TestGenericTreeCursor(t *testing.T) {
 		t.Run("scan for missing element", func(t *testing.T) {
 			var values []any
 
-			tree, err := NewGenericTree[int](16)
+			tree, err := NewGenericTree[int, int](16)
 			ensureError(t, err)
 
 			for i := 0; i < 15; i++ {
@@ -1139,7 +1362,7 @@ func TestGenericTreeCursor(t *testing.T) {
 		t.Run("scan for existing element", func(t *testing.T) {
 			var values []any
 
-			tree, err := NewGenericTree[int](16)
+			tree, err := NewGenericTree[int, int](16)
 			ensureError(t, err)
 
 			for i := 0; i < 15; i++ {
@@ -1160,7 +1383,7 @@ func TestGenericTreeCursor(t *testing.T) {
 	t.Run("multi-leaf tree", func(t *testing.T) {
 		var values []any
 
-		tree, err := NewGenericTree[int](4)
+		tree, err := NewGenericTree[int, int](4)
 		ensureError(t, err)
 
 		for i := 0; i < 15; i++ {
@@ -1180,20 +1403,21 @@ func TestGenericTreeCursor(t *testing.T) {
 }
 
 func TestGenericTreeUpdate(t *testing.T) {
-	tree, err := NewGenericTree[int](8)
+	tree, err := NewGenericTree[int, string](8)
 	ensureError(t, err)
 
-	tree.Update(1, func(value any, ok bool) any {
+	tree.Update(1, func(value string, ok bool) string {
 		if got, want := ok, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := value, error(nil); got != want {
+		// value should be the zero value of the type
+		if got, want := value, ""; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 		return "first"
 	})
 
-	tree.Update(1, func(value any, ok bool) any {
+	tree.Update(1, func(value string, ok bool) string {
 		if got, want := ok, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
@@ -1211,13 +1435,14 @@ func TestGenericTreeUpdate(t *testing.T) {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
 
-	tree.Insert(3, 3)
+	tree.Insert(3, "third")
 
-	tree.Update(2, func(value any, ok bool) any {
+	tree.Update(2, func(value string, ok bool) string {
 		if got, want := ok, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		if got, want := value, error(nil); got != want {
+		// value should be the zero value of the type
+		if got, want := value, ""; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 		return "fourth"
@@ -1235,142 +1460,268 @@ func TestGenericTreeUpdate(t *testing.T) {
 func TestGenericLeafNodeDelete(t *testing.T) {
 	t.Run("still big enough", func(t *testing.T) {
 		t.Run("key is missing", func(t *testing.T) {
-			leaf := &leafNode[int]{
+			leaf := &leafNode[int, int]{
 				Runts:  []int{11, 21, 31},
-				Values: []any{11, 21, 31},
+				Values: []int{11, 21, 31},
 			}
 			bigEnough := leaf.deleteKey(2, 42)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, leaf, &leafNode[int]{
+			ensureNodesMatch(t, leaf, &leafNode[int, int]{
 				Runts:  []int{11, 21, 31},
-				Values: []any{11, 21, 31},
+				Values: []int{11, 21, 31},
 			})
 		})
 		t.Run("key is first", func(t *testing.T) {
-			leaf := &leafNode[int]{
+			leaf := &leafNode[int, int]{
 				Runts:  []int{11, 21, 31},
-				Values: []any{11, 21, 31},
+				Values: []int{11, 21, 31},
 			}
 			bigEnough := leaf.deleteKey(2, 11)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, leaf, &leafNode[int]{
+			ensureNodesMatch(t, leaf, &leafNode[int, int]{
 				Runts:  []int{21, 31},
-				Values: []any{21, 31},
+				Values: []int{21, 31},
 			})
 		})
 		t.Run("key is middle", func(t *testing.T) {
-			leaf := &leafNode[int]{
+			leaf := &leafNode[int, int]{
 				Runts:  []int{11, 21, 31},
-				Values: []any{11, 21, 31},
+				Values: []int{11, 21, 31},
 			}
 			bigEnough := leaf.deleteKey(2, 21)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, leaf, &leafNode[int]{
+			ensureNodesMatch(t, leaf, &leafNode[int, int]{
 				Runts:  []int{11, 31},
-				Values: []any{11, 31},
+				Values: []int{11, 31},
 			})
 		})
 		t.Run("key is last", func(t *testing.T) {
-			leaf := &leafNode[int]{
+			leaf := &leafNode[int, int]{
 				Runts:  []int{11, 21, 31},
-				Values: []any{11, 21, 31},
+				Values: []int{11, 21, 31},
 			}
 			bigEnough := leaf.deleteKey(2, 31)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureNodesMatch(t, leaf, &leafNode[int]{
+			ensureNodesMatch(t, leaf, &leafNode[int, int]{
 				Runts:  []int{11, 21},
-				Values: []any{11, 21},
+				Values: []int{11, 21},
 			})
 		})
 	})
 	t.Run("will be too small", func(t *testing.T) {
-		leaf := newLeafFrom(nil, 11, 21, 31, 41)
+		leaf := &leafNode[int, int]{
+			Runts:  []int{11, 21, 31, 41},
+			Values: []int{11, 21, 31, 41},
+		}
+
 		bigEnough := leaf.deleteKey(4, 21)
 		if got, want := bigEnough, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		ensureNodesMatch(t, leaf, newLeafFrom(nil, 11, 31, 41))
+
+		ensureNodesMatch(t, leaf, &leafNode[int, int]{
+			Runts:  []int{11, 31, 41},
+			Values: []int{11, 31, 41},
+		})
 	})
 }
 
 func TestGenericLeafNodeAdoptFrom(t *testing.T) {
 	t.Run("left", func(t *testing.T) {
-		right := newLeafFrom(nil, 5, 6, 7)
-		left := newLeafFrom(right, 0, 1, 2, 3, 4)
+		right := &leafNode[int, int]{
+			Runts:  []int{5, 6, 7},
+			Values: []int{5, 6, 7},
+		}
+		left := &leafNode[int, int]{
+			Runts:  []int{0, 1, 2, 3, 4},
+			Values: []int{0, 1, 2, 3, 4},
+			Next:   right,
+		}
 
 		right.adoptFromLeft(left)
 
-		ensureNodesMatch(t, left, newLeafFrom(right, 0, 1, 2, 3))
-		ensureNodesMatch(t, right, newLeafFrom(nil, 4, 5, 6, 7))
+		ensureNodesMatch(t, left, &leafNode[int, int]{
+			Runts:  []int{0, 1, 2, 3},
+			Values: []int{0, 1, 2, 3},
+			Next:   right,
+		})
+
+		ensureNodesMatch(t, right, &leafNode[int, int]{
+			Runts:  []int{4, 5, 6, 7},
+			Values: []int{4, 5, 6, 7},
+		})
 	})
 	t.Run("right", func(t *testing.T) {
-		right := newLeafFrom(nil, 3, 4, 5, 6, 7)
-		left := newLeafFrom(right, 0, 1, 2)
+		right := &leafNode[int, int]{
+			Runts:  []int{3, 4, 5, 6, 7},
+			Values: []int{3, 4, 5, 6, 7},
+		}
+		left := &leafNode[int, int]{
+			Runts:  []int{0, 1, 2},
+			Values: []int{0, 1, 2},
+			Next:   right,
+		}
 
 		left.adoptFromRight(right)
 
-		ensureNodesMatch(t, left, newLeafFrom(right, 0, 1, 2, 3))
-		ensureNodesMatch(t, right, newLeafFrom(nil, 4, 5, 6, 7))
+		ensureNodesMatch(t, left, &leafNode[int, int]{
+			Runts:  []int{0, 1, 2, 3},
+			Values: []int{0, 1, 2, 3},
+			Next:   right,
+		})
+
+		ensureNodesMatch(t, right, &leafNode[int, int]{
+			Runts:  []int{4, 5, 6, 7},
+			Values: []int{4, 5, 6, 7},
+		})
 	})
 }
 
 func TestGenericInternalNodeAdoptFrom(t *testing.T) {
 	t.Run("left", func(t *testing.T) {
-		leafI := newLeafFrom(nil, 90, 92, 94, 96, 98)
-		leafH := newLeafFrom(leafI, 80, 82, 84, 86, 88)
-		leafG := newLeafFrom(leafH, 70, 72, 74, 76, 78)
-		leafF := newLeafFrom(leafG, 60, 62, 64, 66, 68)
-		leafE := newLeafFrom(leafF, 50, 52, 54, 56, 58)
-		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
-		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := newLeafFrom(leafB, 10, 12, 14, 16, 18)
+		leafI := &leafNode[int, int]{
+			Runts:  []int{90, 92, 94, 96, 98},
+			Values: []int{90, 92, 94, 96, 98},
+			Next:   nil,
+		}
+		leafH := &leafNode[int, int]{
+			Runts:  []int{80, 82, 84, 86, 88},
+			Values: []int{80, 82, 84, 86, 88},
+			Next:   leafI,
+		}
+		leafG := &leafNode[int, int]{
+			Runts:  []int{70, 72, 74, 76, 78},
+			Values: []int{70, 72, 74, 76, 78},
+			Next:   leafH,
+		}
+		leafF := &leafNode[int, int]{
+			Runts:  []int{60, 62, 64, 66, 68},
+			Values: []int{60, 62, 64, 66, 68},
+			Next:   leafG,
+		}
+		leafE := &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56, 58},
+			Values: []int{50, 52, 54, 56, 58},
+			Next:   leafF,
+		}
+		leafD := &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46, 48},
+			Values: []int{40, 42, 44, 46, 48},
+			Next:   leafE,
+		}
+		leafC := &leafNode[int, int]{
+			Runts:  []int{30, 32, 34, 36, 38},
+			Values: []int{30, 32, 34, 36, 38},
+			Next:   leafD,
+		}
+		leafB := &leafNode[int, int]{
+			Runts:  []int{20, 22, 24, 26, 28},
+			Values: []int{20, 22, 24, 26, 28},
+			Next:   leafC,
+		}
+		leafA := &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16, 18},
+			Values: []int{10, 12, 14, 16, 18},
+			Next:   leafB,
+		}
 
-		left := newInternalFrom(leafA, leafB, leafC, leafD, leafE, leafF)
-		right := newInternalFrom(leafG, leafH, leafI)
+		left := newInternal(leafA, leafB, leafC, leafD, leafE, leafF)
+		right := newInternal(leafG, leafH, leafI)
 
 		right.adoptFromLeft(left)
 
-		ensureInternalNodesMatch(t, left, newInternalFrom(leafA, leafB, leafC, leafD, leafE))
-		ensureInternalNodesMatch(t, right, newInternalFrom(leafF, leafG, leafH, leafI))
+		ensureInternalNodesMatch(t, left, newInternal(leafA, leafB, leafC, leafD, leafE))
+		ensureInternalNodesMatch(t, right, newInternal(leafF, leafG, leafH, leafI))
 	})
 	t.Run("right", func(t *testing.T) {
-		leafI := newLeafFrom(nil, 90, 92, 94, 96, 98)
-		leafH := newLeafFrom(leafI, 80, 82, 84, 86, 88)
-		leafG := newLeafFrom(leafH, 70, 72, 74, 76, 78)
-		leafF := newLeafFrom(leafG, 60, 62, 64, 66, 68)
-		leafE := newLeafFrom(leafF, 50, 52, 54, 56, 58)
-		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
-		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := newLeafFrom(leafB, 10, 12, 14, 16, 18)
+		leafI := &leafNode[int, int]{
+			Runts:  []int{90, 92, 94, 96, 98},
+			Values: []int{90, 92, 94, 96, 98},
+			Next:   nil,
+		}
+		leafH := &leafNode[int, int]{
+			Runts:  []int{80, 82, 84, 86, 88},
+			Values: []int{80, 82, 84, 86, 88},
+			Next:   leafI,
+		}
+		leafG := &leafNode[int, int]{
+			Runts:  []int{70, 72, 74, 76, 78},
+			Values: []int{70, 72, 74, 76, 78},
+			Next:   leafH,
+		}
+		leafF := &leafNode[int, int]{
+			Runts:  []int{60, 62, 64, 66, 68},
+			Values: []int{60, 62, 64, 66, 68},
+			Next:   leafG,
+		}
+		leafE := &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56, 58},
+			Values: []int{50, 52, 54, 56, 58},
+			Next:   leafF,
+		}
+		leafD := &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46, 48},
+			Values: []int{40, 42, 44, 46, 48},
+			Next:   leafE,
+		}
+		leafC := &leafNode[int, int]{
+			Runts:  []int{30, 32, 34, 36, 38},
+			Values: []int{30, 32, 34, 36, 38},
+			Next:   leafD,
+		}
+		leafB := &leafNode[int, int]{
+			Runts:  []int{20, 22, 24, 26, 28},
+			Values: []int{20, 22, 24, 26, 28},
+			Next:   leafC,
+		}
+		leafA := &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16, 18},
+			Values: []int{10, 12, 14, 16, 18},
+			Next:   leafB,
+		}
 
-		left := newInternalFrom(leafA, leafB, leafC)
-		right := newInternalFrom(leafD, leafE, leafF, leafG, leafH, leafI)
+		left := newInternal(leafA, leafB, leafC)
+		right := newInternal(leafD, leafE, leafF, leafG, leafH, leafI)
 
 		left.adoptFromRight(right)
 
-		ensureInternalNodesMatch(t, left, newInternalFrom(leafA, leafB, leafC, leafD))
-		ensureInternalNodesMatch(t, right, newInternalFrom(leafE, leafF, leafG, leafH, leafI))
+		ensureInternalNodesMatch(t, left, newInternal(leafA, leafB, leafC, leafD))
+		ensureInternalNodesMatch(t, right, newInternal(leafE, leafF, leafG, leafH, leafI))
 	})
 }
 
 func TestGenericLeafNodeMergeWithRight(t *testing.T) {
-	leafC := newLeafFrom(nil, 6, 7, 8, 9)
-	leafB := newLeafFrom(leafC, 3, 4, 5)
-	leafA := newLeafFrom(leafB, 0, 1, 2)
+	leafC := &leafNode[int, int]{
+		Runts:  []int{6, 7, 8, 9},
+		Values: []int{6, 7, 8, 9},
+		Next:   nil,
+	}
+	leafB := &leafNode[int, int]{
+		Runts:  []int{3, 4, 5},
+		Values: []int{3, 4, 5},
+		Next:   leafC,
+	}
+	leafA := &leafNode[int, int]{
+		Runts:  []int{0, 1, 2},
+		Values: []int{0, 1, 2},
+		Next:   leafB,
+	}
 
 	leafA.absorbRight(leafB)
 
-	ensureNodesMatch(t, leafA, newLeafFrom(leafC, 0, 1, 2, 3, 4, 5))
+	ensureNodesMatch(t, leafA, &leafNode[int, int]{
+		Runts:  []int{0, 1, 2, 3, 4, 5},
+		Values: []int{0, 1, 2, 3, 4, 5},
+		Next:   leafC,
+	})
 
 	if got, want := len(leafB.Runts), 0; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
@@ -1378,28 +1729,64 @@ func TestGenericLeafNodeMergeWithRight(t *testing.T) {
 	if got, want := len(leafB.Values), 0; got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
-	if got, want := leafB.Next, (*leafNode[int])(nil); got != want {
+	if got, want := leafB.Next, (*leafNode[int, int])(nil); got != want {
 		t.Errorf("GOT: %v; WANT: %v", got, want)
 	}
 }
 
 func TestGenericInternalNodeMergeWithRight(t *testing.T) {
-	leafI := newLeafFrom(nil, 90, 92, 94, 96, 98)
-	leafH := newLeafFrom(leafI, 80, 82, 84, 86, 88)
-	leafG := newLeafFrom(leafH, 70, 72, 74, 76, 78)
-	leafF := newLeafFrom(leafG, 60, 62, 64, 66, 68)
-	leafE := newLeafFrom(leafF, 50, 52, 54, 56, 58)
-	leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
-	leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
-	leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
-	leafA := newLeafFrom(leafB, 10, 12, 14, 16, 18)
+	leafI := &leafNode[int, int]{
+		Runts:  []int{90, 92, 94, 96, 98},
+		Values: []int{90, 92, 94, 96, 98},
+		Next:   nil,
+	}
+	leafH := &leafNode[int, int]{
+		Runts:  []int{80, 82, 84, 86, 88},
+		Values: []int{80, 82, 84, 86, 88},
+		Next:   leafI,
+	}
+	leafG := &leafNode[int, int]{
+		Runts:  []int{70, 72, 74, 76, 78},
+		Values: []int{70, 72, 74, 76, 78},
+		Next:   leafH,
+	}
+	leafF := &leafNode[int, int]{
+		Runts:  []int{60, 62, 64, 66, 68},
+		Values: []int{60, 62, 64, 66, 68},
+		Next:   leafG,
+	}
+	leafE := &leafNode[int, int]{
+		Runts:  []int{50, 52, 54, 56, 58},
+		Values: []int{50, 52, 54, 56, 58},
+		Next:   leafF,
+	}
+	leafD := &leafNode[int, int]{
+		Runts:  []int{40, 42, 44, 46, 48},
+		Values: []int{40, 42, 44, 46, 48},
+		Next:   leafE,
+	}
+	leafC := &leafNode[int, int]{
+		Runts:  []int{30, 32, 34, 36, 38},
+		Values: []int{30, 32, 34, 36, 38},
+		Next:   leafD,
+	}
+	leafB := &leafNode[int, int]{
+		Runts:  []int{20, 22, 24, 26, 28},
+		Values: []int{20, 22, 24, 26, 28},
+		Next:   leafC,
+	}
+	leafA := &leafNode[int, int]{
+		Runts:  []int{10, 12, 14, 16, 18},
+		Values: []int{10, 12, 14, 16, 18},
+		Next:   leafB,
+	}
 
-	left := newInternalFrom(leafA, leafB, leafC)
-	right := newInternalFrom(leafD, leafE, leafF, leafG)
+	left := newInternal(leafA, leafB, leafC)
+	right := newInternal(leafD, leafE, leafF, leafG)
 
 	left.absorbRight(right)
 
-	internal := newInternalFrom(leafA, leafB, leafC, leafD, leafE, leafF, leafG)
+	internal := newInternal(leafA, leafB, leafC, leafD, leafE, leafF, leafG)
 
 	ensureInternalNodesMatch(t, left, internal)
 
@@ -1413,13 +1800,33 @@ func TestGenericInternalNodeMergeWithRight(t *testing.T) {
 
 func TestGenericInternalNodeDeleteKey(t *testing.T) {
 	t.Run("not too small", func(t *testing.T) {
-		leafE := newLeafFrom(nil, 50, 52, 54, 56, 58)
-		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
-		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := newLeafFrom(leafB, 10, 12, 14, 16, 18)
+		leafE := &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56, 58},
+			Values: []int{50, 52, 54, 56, 58},
+			Next:   nil,
+		}
+		leafD := &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46, 48},
+			Values: []int{40, 42, 44, 46, 48},
+			Next:   leafE,
+		}
+		leafC := &leafNode[int, int]{
+			Runts:  []int{30, 32, 34, 36, 38},
+			Values: []int{30, 32, 34, 36, 38},
+			Next:   leafD,
+		}
+		leafB := &leafNode[int, int]{
+			Runts:  []int{20, 22, 24, 26, 28},
+			Values: []int{20, 22, 24, 26, 28},
+			Next:   leafC,
+		}
+		leafA := &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16, 18},
+			Values: []int{10, 12, 14, 16, 18},
+			Next:   leafB,
+		}
 
-		internal := newInternalFrom(leafA, leafB, leafC, leafD)
+		internal := newInternal(leafA, leafB, leafC, leafD)
 
 		bigEnough := internal.deleteKey(4, 22)
 		if got, want := bigEnough, true; got != want {
@@ -1428,13 +1835,33 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 	})
 	t.Run("internal node absorbs right when no left and skinny right", func(t *testing.T) {
 		t.Run("internal node not too small", func(t *testing.T) {
-			leafE := newLeafFrom(nil, 50, 52, 54, 56, 58)
-			leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
-			leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
-			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
+			leafE := &leafNode[int, int]{
+				Runts:  []int{50, 52, 54, 56, 58},
+				Values: []int{50, 52, 54, 56, 58},
+				Next:   nil,
+			}
+			leafD := &leafNode[int, int]{
+				Runts:  []int{40, 42, 44, 46, 48},
+				Values: []int{40, 42, 44, 46, 48},
+				Next:   leafE,
+			}
+			leafC := &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36, 38},
+				Values: []int{30, 32, 34, 36, 38},
+				Next:   leafD,
+			}
+			leafB := &leafNode[int, int]{
+				Runts:  []int{20, 22, 24, 26},
+				Values: []int{20, 22, 24, 26},
+				Next:   leafC,
+			}
+			leafA := &leafNode[int, int]{
+				Runts:  []int{10, 12, 14, 16},
+				Values: []int{10, 12, 14, 16},
+				Next:   leafB,
+			}
 
-			internal := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
+			internal := newInternal(leafA, leafB, leafC, leafD, leafE)
 
 			// NOTE: When leaf A starts with 4 elements, and test deletes the
 			// value 12 from it with a minimum node size of 4, the node will
@@ -1449,7 +1876,11 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 
 			// Leaf A will adopt all elements from leaf B, and its Next field
 			// will point to leaf C.
-			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafC, 10, 14, 16, 20, 22, 24, 26))
+			ensureLeafNodesMatch(t, leafA, &leafNode[int, int]{
+				Runts:  []int{10, 14, 16, 20, 22, 24, 26},
+				Values: []int{10, 14, 16, 20, 22, 24, 26},
+				Next:   leafC,
+			})
 
 			// Leaf B will have no remaining elements.
 			if got, want := len(leafB.Runts), 0; got != want {
@@ -1460,71 +1891,186 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 			}
 
 			// The other leaf nodes should be untouched.
-			ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36, 38))
-			ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46, 48))
-			ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 50, 52, 54, 56, 58))
+			ensureLeafNodesMatch(t, leafC, &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36, 38},
+				Values: []int{30, 32, 34, 36, 38},
+				Next:   leafD,
+			})
+			ensureLeafNodesMatch(t, leafD, &leafNode[int, int]{
+				Runts:  []int{40, 42, 44, 46, 48},
+				Values: []int{40, 42, 44, 46, 48},
+				Next:   leafE,
+			})
+			ensureLeafNodesMatch(t, leafE, &leafNode[int, int]{
+				Runts:  []int{50, 52, 54, 56, 58},
+				Values: []int{50, 52, 54, 56, 58},
+				Next:   nil,
+			})
 		})
 		t.Run("internal node too small", func(t *testing.T) {
-			leafD := newLeafFrom(nil, 40, 42, 44, 46, 48)
-			leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
-			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
+			leafD := &leafNode[int, int]{
+				Runts:  []int{40, 42, 44, 46, 48},
+				Values: []int{40, 42, 44, 46, 48},
+				Next:   nil,
+			}
+			leafC := &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36, 38},
+				Values: []int{30, 32, 34, 36, 38},
+				Next:   leafD,
+			}
+			leafB := &leafNode[int, int]{
+				Runts:  []int{20, 22, 24, 26},
+				Values: []int{20, 22, 24, 26},
+				Next:   leafC,
+			}
+			leafA := &leafNode[int, int]{
+				Runts:  []int{10, 12, 14, 16},
+				Values: []int{10, 12, 14, 16},
+				Next:   leafB,
+			}
 
-			child := newInternalFrom(leafA, leafB, leafC, leafD)
+			internal := newInternal(leafA, leafB, leafC, leafD)
 
-			bigEnough := child.deleteKey(4, 12)
+			bigEnough := internal.deleteKey(4, 12)
 			if got, want := bigEnough, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafC, 10, 14, 16, 20, 22, 24, 26))
+			ensureLeafNodesMatch(t, leafA, &leafNode[int, int]{
+				Runts:  []int{10, 14, 16, 20, 22, 24, 26},
+				Values: []int{10, 14, 16, 20, 22, 24, 26},
+				Next:   leafC,
+			})
+
+			// leaf B is reset
 			if got, want := len(leafB.Runts), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			if got, want := len(leafB.Values), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36, 38))
-			ensureLeafNodesMatch(t, leafD, newLeafFrom(nil, 40, 42, 44, 46, 48))
+			if got := leafB.Next; got != nil {
+				t.Errorf("GOT: %v; WANT: nil", got)
+			}
+
+			ensureLeafNodesMatch(t, leafC, &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36, 38},
+				Values: []int{30, 32, 34, 36, 38},
+				Next:   leafD,
+			})
+
+			ensureLeafNodesMatch(t, leafD, &leafNode[int, int]{
+				Runts:  []int{40, 42, 44, 46, 48},
+				Values: []int{40, 42, 44, 46, 48},
+				Next:   nil,
+			})
 		})
 	})
 	t.Run("child adopts from right when no left and fat right", func(t *testing.T) {
-		leafE := newLeafFrom(nil, 50, 52, 54, 56, 58)
-		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
-		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := newLeafFrom(leafB, 10, 12, 14, 16)
+		leafE := &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56, 58},
+			Values: []int{50, 52, 54, 56, 58},
+			Next:   nil,
+		}
+		leafD := &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46, 48},
+			Values: []int{40, 42, 44, 46, 48},
+			Next:   leafE,
+		}
+		leafC := &leafNode[int, int]{
+			Runts:  []int{30, 32, 34, 36, 38},
+			Values: []int{30, 32, 34, 36, 38},
+			Next:   leafD,
+		}
+		leafB := &leafNode[int, int]{
+			Runts:  []int{20, 22, 24, 26, 28},
+			Values: []int{20, 22, 24, 26, 28},
+			Next:   leafC,
+		}
+		leafA := &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16},
+			Values: []int{10, 12, 14, 16},
+			Next:   leafB,
+		}
 
-		child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
+		internal := newInternal(leafA, leafB, leafC, leafD, leafE)
 
-		bigEnough := child.deleteKey(4, 12)
+		bigEnough := internal.deleteKey(4, 12)
 		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
-		ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 14, 16, 20))
-		ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 22, 24, 26, 28))
-		ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36, 38))
-		ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46, 48))
-		ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 50, 52, 54, 56, 58))
+		ensureLeafNodesMatch(t, leafA, &leafNode[int, int]{
+			Runts:  []int{10, 14, 16, 20},
+			Values: []int{10, 14, 16, 20},
+			Next:   leafB,
+		})
+		ensureLeafNodesMatch(t, leafB, &leafNode[int, int]{
+			Runts:  []int{22, 24, 26, 28},
+			Values: []int{22, 24, 26, 28},
+			Next:   leafC,
+		})
+		ensureLeafNodesMatch(t, leafC, &leafNode[int, int]{
+			Runts:  []int{30, 32, 34, 36, 38},
+			Values: []int{30, 32, 34, 36, 38},
+			Next:   leafD,
+		})
+		ensureLeafNodesMatch(t, leafD, &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46, 48},
+			Values: []int{40, 42, 44, 46, 48},
+			Next:   leafE,
+		})
+		ensureLeafNodesMatch(t, leafE, &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56, 58},
+			Values: []int{50, 52, 54, 56, 58},
+			Next:   nil,
+		})
 	})
 	t.Run("left absorbs child when skinny left and no right", func(t *testing.T) {
 		t.Run("too small", func(t *testing.T) {
-			leafD := newLeafFrom(nil, 40, 42, 44, 46)
-			leafC := newLeafFrom(leafD, 30, 32, 34, 36)
-			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
+			leafD := &leafNode[int, int]{
+				Runts:  []int{40, 42, 44, 46},
+				Values: []int{40, 42, 44, 46},
+				Next:   nil,
+			}
+			leafC := &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36},
+				Values: []int{30, 32, 34, 36},
+				Next:   leafD,
+			}
+			leafB := &leafNode[int, int]{
+				Runts:  []int{20, 22, 24, 26},
+				Values: []int{20, 22, 24, 26},
+				Next:   leafC,
+			}
+			leafA := &leafNode[int, int]{
+				Runts:  []int{10, 12, 14, 16},
+				Values: []int{10, 12, 14, 16},
+				Next:   leafB,
+			}
 
-			child := newInternalFrom(leafA, leafB, leafC, leafD)
+			internal := newInternal(leafA, leafB, leafC, leafD)
 
-			bigEnough := child.deleteKey(4, 42)
+			bigEnough := internal.deleteKey(4, 42)
 			if got, want := bigEnough, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16))
-			ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 22, 24, 26))
-			ensureLeafNodesMatch(t, leafC, newLeafFrom(nil, 30, 32, 34, 36, 40, 44, 46))
+			ensureLeafNodesMatch(t, leafA, &leafNode[int, int]{
+				Runts:  []int{10, 12, 14, 16},
+				Values: []int{10, 12, 14, 16},
+				Next:   leafB,
+			})
+			ensureLeafNodesMatch(t, leafB, &leafNode[int, int]{
+				Runts:  []int{20, 22, 24, 26},
+				Values: []int{20, 22, 24, 26},
+				Next:   leafC,
+			})
+			ensureLeafNodesMatch(t, leafC, &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36, 40, 44, 46},
+				Values: []int{30, 32, 34, 36, 40, 44, 46},
+				Next:   nil,
+			})
 			if got, want := len(leafD.Runts), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -1533,23 +2079,59 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 			}
 		})
 		t.Run("not too small", func(t *testing.T) {
-			leafE := newLeafFrom(nil, 50, 52, 54, 56)
-			leafD := newLeafFrom(leafE, 40, 42, 44, 46)
-			leafC := newLeafFrom(leafD, 30, 32, 34, 36)
-			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
+			leafE := &leafNode[int, int]{
+				Runts:  []int{50, 52, 54, 56},
+				Values: []int{50, 52, 54, 56},
+				Next:   nil,
+			}
+			leafD := &leafNode[int, int]{
+				Runts:  []int{40, 42, 44, 46},
+				Values: []int{40, 42, 44, 46},
+				Next:   leafE,
+			}
+			leafC := &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36},
+				Values: []int{30, 32, 34, 36},
+				Next:   leafD,
+			}
+			leafB := &leafNode[int, int]{
+				Runts:  []int{20, 22, 24, 26},
+				Values: []int{20, 22, 24, 26},
+				Next:   leafC,
+			}
+			leafA := &leafNode[int, int]{
+				Runts:  []int{10, 12, 14, 16},
+				Values: []int{10, 12, 14, 16},
+				Next:   leafB,
+			}
 
-			child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
+			internal := newInternal(leafA, leafB, leafC, leafD, leafE)
 
-			bigEnough := child.deleteKey(4, 52)
+			bigEnough := internal.deleteKey(4, 52)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16))
-			ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 22, 24, 26))
-			ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36))
-			ensureLeafNodesMatch(t, leafD, newLeafFrom(nil, 40, 42, 44, 46, 50, 54, 56))
+			ensureLeafNodesMatch(t, leafA, &leafNode[int, int]{
+				Runts:  []int{10, 12, 14, 16},
+				Values: []int{10, 12, 14, 16},
+				Next:   leafB,
+			})
+			ensureLeafNodesMatch(t, leafB, &leafNode[int, int]{
+				Runts:  []int{20, 22, 24, 26},
+				Values: []int{20, 22, 24, 26},
+				Next:   leafC,
+			})
+			ensureLeafNodesMatch(t, leafC, &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36},
+				Values: []int{30, 32, 34, 36},
+				Next:   leafD,
+			})
+			ensureLeafNodesMatch(t, leafD, &leafNode[int, int]{
+				Runts:  []int{40, 42, 44, 46, 50, 54, 56},
+				Values: []int{40, 42, 44, 46, 50, 54, 56},
+				Next:   nil,
+			})
 			if got, want := len(leafE.Runts), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
@@ -1560,130 +2142,342 @@ func TestGenericInternalNodeDeleteKey(t *testing.T) {
 	})
 	t.Run("left absorbs child when skinny left and skinny right", func(t *testing.T) {
 		t.Run("too small", func(t *testing.T) {
-			leafC := newLeafFrom(nil, 30, 32, 34, 36)
-			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
+			leafC := &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36},
+				Values: []int{30, 32, 34, 36},
+				Next:   nil,
+			}
+			leafB := &leafNode[int, int]{
+				Runts:  []int{20, 22, 24, 26},
+				Values: []int{20, 22, 24, 26},
+				Next:   leafC,
+			}
+			leafA := &leafNode[int, int]{
+				Runts:  []int{10, 12, 14, 16},
+				Values: []int{10, 12, 14, 16},
+				Next:   leafB,
+			}
 
-			child := newInternalFrom(leafA, leafB, leafC)
+			internal := newInternal(leafA, leafB, leafC)
 
-			bigEnough := child.deleteKey(4, 22)
+			bigEnough := internal.deleteKey(4, 22)
 			if got, want := bigEnough, false; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafC, 10, 12, 14, 16, 20, 24, 26))
+			ensureLeafNodesMatch(t, leafA, &leafNode[int, int]{
+				Runts:  []int{10, 12, 14, 16, 20, 24, 26},
+				Values: []int{10, 12, 14, 16, 20, 24, 26},
+				Next:   leafC,
+			})
 			if got, want := len(leafB.Runts), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			if got, want := len(leafB.Values), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureLeafNodesMatch(t, leafC, newLeafFrom(nil, 30, 32, 34, 36))
+			ensureLeafNodesMatch(t, leafC, &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36},
+				Values: []int{30, 32, 34, 36},
+				Next:   nil,
+			})
 		})
 		t.Run("not too small", func(t *testing.T) {
-			leafE := newLeafFrom(nil, 50, 52, 54, 56)
-			leafD := newLeafFrom(leafE, 40, 42, 44, 46)
-			leafC := newLeafFrom(leafD, 30, 32, 34, 36)
-			leafB := newLeafFrom(leafC, 20, 22, 24, 26)
-			leafA := newLeafFrom(leafB, 10, 12, 14, 16)
+			leafE := &leafNode[int, int]{
+				Runts:  []int{50, 52, 54, 56},
+				Values: []int{50, 52, 54, 56},
+				Next:   nil,
+			}
+			leafD := &leafNode[int, int]{
+				Runts:  []int{40, 42, 44, 46},
+				Values: []int{40, 42, 44, 46},
+				Next:   leafE,
+			}
+			leafC := &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36},
+				Values: []int{30, 32, 34, 36},
+				Next:   leafD,
+			}
+			leafB := &leafNode[int, int]{
+				Runts:  []int{20, 22, 24, 26},
+				Values: []int{20, 22, 24, 26},
+				Next:   leafC,
+			}
+			leafA := &leafNode[int, int]{
+				Runts:  []int{10, 12, 14, 16},
+				Values: []int{10, 12, 14, 16},
+				Next:   leafB,
+			}
 
-			child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
+			internal := newInternal(leafA, leafB, leafC, leafD, leafE)
 
-			bigEnough := child.deleteKey(4, 22)
+			bigEnough := internal.deleteKey(4, 22)
 			if got, want := bigEnough, true; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 
-			ensureLeafNodesMatch(t, leafA, newLeafFrom(leafC, 10, 12, 14, 16, 20, 24, 26))
+			ensureLeafNodesMatch(t, leafA, &leafNode[int, int]{
+				Runts:  []int{10, 12, 14, 16, 20, 24, 26},
+				Values: []int{10, 12, 14, 16, 20, 24, 26},
+				Next:   leafC,
+			})
 			if got, want := len(leafB.Runts), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 			if got, want := len(leafB.Values), 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
-			ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36))
-			ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46))
+			ensureLeafNodesMatch(t, leafC, &leafNode[int, int]{
+				Runts:  []int{30, 32, 34, 36},
+				Values: []int{30, 32, 34, 36},
+				Next:   leafD,
+			})
+			ensureLeafNodesMatch(t, leafD, &leafNode[int, int]{
+				Runts:  []int{40, 42, 44, 46},
+				Values: []int{40, 42, 44, 46},
+				Next:   leafE,
+			})
 		})
 	})
 	t.Run("child adopts from right when skinny left and fat right", func(t *testing.T) {
-		leafE := newLeafFrom(nil, 50, 52, 54, 56, 58)
-		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := newLeafFrom(leafD, 30, 32, 34, 36, 38)
-		leafB := newLeafFrom(leafC, 20, 22, 24, 26)
-		leafA := newLeafFrom(leafB, 10, 12, 14, 16)
+		leafE := &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56, 58},
+			Values: []int{50, 52, 54, 56, 58},
+			Next:   nil,
+		}
+		leafD := &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46, 48},
+			Values: []int{40, 42, 44, 46, 48},
+			Next:   leafE,
+		}
+		leafC := &leafNode[int, int]{
+			Runts:  []int{30, 32, 34, 36, 38},
+			Values: []int{30, 32, 34, 36, 38},
+			Next:   leafD,
+		}
+		leafB := &leafNode[int, int]{
+			Runts:  []int{20, 22, 24, 26},
+			Values: []int{20, 22, 24, 26},
+			Next:   leafC,
+		}
+		leafA := &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16},
+			Values: []int{10, 12, 14, 16},
+			Next:   leafB,
+		}
 
-		child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
+		internal := newInternal(leafA, leafB, leafC, leafD, leafE)
 
-		bigEnough := child.deleteKey(4, 22)
+		bigEnough := internal.deleteKey(4, 22)
 		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
-		ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16))
-		ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 24, 26, 30))
-		ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 32, 34, 36, 38))
-		ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46, 48))
-		ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 50, 52, 54, 56, 58))
+		ensureLeafNodesMatch(t, leafA, &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16},
+			Values: []int{10, 12, 14, 16},
+			Next:   leafB,
+		})
+		ensureLeafNodesMatch(t, leafB, &leafNode[int, int]{
+			Runts:  []int{20, 24, 26, 30},
+			Values: []int{20, 24, 26, 30},
+			Next:   leafC,
+		})
+		ensureLeafNodesMatch(t, leafC, &leafNode[int, int]{
+			Runts:  []int{32, 34, 36, 38},
+			Values: []int{32, 34, 36, 38},
+			Next:   leafD,
+		})
+		ensureLeafNodesMatch(t, leafD, &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46, 48},
+			Values: []int{40, 42, 44, 46, 48},
+			Next:   leafE,
+		})
+		ensureLeafNodesMatch(t, leafE, &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56, 58},
+			Values: []int{50, 52, 54, 56, 58},
+			Next:   nil,
+		})
 	})
 	t.Run("child adopts from left when fat left and no right", func(t *testing.T) {
-		leafE := newLeafFrom(nil, 50, 52, 54, 56)
-		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := newLeafFrom(leafD, 30, 32, 34, 36)
-		leafB := newLeafFrom(leafC, 20, 22, 24, 26)
-		leafA := newLeafFrom(leafB, 10, 12, 14, 16)
+		leafE := &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56},
+			Values: []int{50, 52, 54, 56},
+			Next:   nil,
+		}
+		leafD := &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46, 48},
+			Values: []int{40, 42, 44, 46, 48},
+			Next:   leafE,
+		}
+		leafC := &leafNode[int, int]{
+			Runts:  []int{30, 32, 34, 36},
+			Values: []int{30, 32, 34, 36},
+			Next:   leafD,
+		}
+		leafB := &leafNode[int, int]{
+			Runts:  []int{20, 22, 24, 26},
+			Values: []int{20, 22, 24, 26},
+			Next:   leafC,
+		}
+		leafA := &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16},
+			Values: []int{10, 12, 14, 16},
+			Next:   leafB,
+		}
 
-		child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
+		internal := newInternal(leafA, leafB, leafC, leafD, leafE)
 
-		bigEnough := child.deleteKey(4, 52)
+		bigEnough := internal.deleteKey(4, 52)
 		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
-		ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16))
-		ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 22, 24, 26))
-		ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 32, 34, 36))
-		ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46))
-		ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 48, 50, 54, 56))
+		ensureLeafNodesMatch(t, leafA, &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16},
+			Values: []int{10, 12, 14, 16},
+			Next:   leafB,
+		})
+		ensureLeafNodesMatch(t, leafB, &leafNode[int, int]{
+			Runts:  []int{20, 22, 24, 26},
+			Values: []int{20, 22, 24, 26},
+			Next:   leafC,
+		})
+		ensureLeafNodesMatch(t, leafC, &leafNode[int, int]{
+			Runts:  []int{30, 32, 34, 36},
+			Values: []int{30, 32, 34, 36},
+			Next:   leafD,
+		})
+		ensureLeafNodesMatch(t, leafD, &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46},
+			Values: []int{40, 42, 44, 46},
+			Next:   leafE,
+		})
+		ensureLeafNodesMatch(t, leafE, &leafNode[int, int]{
+			Runts:  []int{48, 50, 54, 56},
+			Values: []int{48, 50, 54, 56},
+			Next:   nil,
+		})
 	})
 	t.Run("child adopts from left when fat left and skinny right", func(t *testing.T) {
-		leafE := newLeafFrom(nil, 50, 52, 54, 56)
-		leafD := newLeafFrom(leafE, 40, 42, 44, 46)
-		leafC := newLeafFrom(leafD, 30, 32, 34, 36)
-		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := newLeafFrom(leafB, 10, 12, 14, 16)
+		leafE := &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56},
+			Values: []int{50, 52, 54, 56},
+			Next:   nil,
+		}
+		leafD := &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46},
+			Values: []int{40, 42, 44, 46},
+			Next:   leafE,
+		}
+		leafC := &leafNode[int, int]{
+			Runts:  []int{30, 32, 34, 36},
+			Values: []int{30, 32, 34, 36},
+			Next:   leafD,
+		}
+		leafB := &leafNode[int, int]{
+			Runts:  []int{20, 22, 24, 26, 28},
+			Values: []int{20, 22, 24, 26, 28},
+			Next:   leafC,
+		}
+		leafA := &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16},
+			Values: []int{10, 12, 14, 16},
+			Next:   leafB,
+		}
 
-		child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
+		internal := newInternal(leafA, leafB, leafC, leafD, leafE)
 
-		bigEnough := child.deleteKey(4, 32)
+		bigEnough := internal.deleteKey(4, 32)
 		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
-		ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16))
-		ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 22, 24, 26))
-		ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 28, 30, 34, 36))
-		ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 40, 42, 44, 46))
-		ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 50, 52, 54, 56))
+		ensureLeafNodesMatch(t, leafA, &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16},
+			Values: []int{10, 12, 14, 16},
+			Next:   leafB,
+		})
+		ensureLeafNodesMatch(t, leafB, &leafNode[int, int]{
+			Runts:  []int{20, 22, 24, 26},
+			Values: []int{20, 22, 24, 26},
+			Next:   leafC,
+		})
+		ensureLeafNodesMatch(t, leafC, &leafNode[int, int]{
+			Runts:  []int{28, 30, 34, 36},
+			Values: []int{28, 30, 34, 36},
+			Next:   leafD,
+		})
+		ensureLeafNodesMatch(t, leafD, &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46},
+			Values: []int{40, 42, 44, 46},
+			Next:   leafE,
+		})
+		ensureLeafNodesMatch(t, leafE, &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56},
+			Values: []int{50, 52, 54, 56},
+			Next:   nil,
+		})
 	})
 	t.Run("child adopts from right when fat left and fat right", func(t *testing.T) {
-		leafE := newLeafFrom(nil, 50, 52, 54, 56, 58)
-		leafD := newLeafFrom(leafE, 40, 42, 44, 46, 48)
-		leafC := newLeafFrom(leafD, 30, 32, 34, 36)
-		leafB := newLeafFrom(leafC, 20, 22, 24, 26, 28)
-		leafA := newLeafFrom(leafB, 10, 12, 14, 16, 18)
+		leafE := &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56, 58},
+			Values: []int{50, 52, 54, 56, 58},
+			Next:   nil,
+		}
+		leafD := &leafNode[int, int]{
+			Runts:  []int{40, 42, 44, 46, 48},
+			Values: []int{40, 42, 44, 46, 48},
+			Next:   leafE,
+		}
+		leafC := &leafNode[int, int]{
+			Runts:  []int{30, 32, 34, 36},
+			Values: []int{30, 32, 34, 36},
+			Next:   leafD,
+		}
+		leafB := &leafNode[int, int]{
+			Runts:  []int{20, 22, 24, 26, 28},
+			Values: []int{20, 22, 24, 26, 28},
+			Next:   leafC,
+		}
+		leafA := &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16, 18},
+			Values: []int{10, 12, 14, 16, 18},
+			Next:   leafB,
+		}
 
-		child := newInternalFrom(leafA, leafB, leafC, leafD, leafE)
+		internal := newInternal(leafA, leafB, leafC, leafD, leafE)
 
-		bigEnough := child.deleteKey(4, 32)
+		bigEnough := internal.deleteKey(4, 32)
 		if got, want := bigEnough, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 
-		ensureLeafNodesMatch(t, leafA, newLeafFrom(leafB, 10, 12, 14, 16, 18))
-		ensureLeafNodesMatch(t, leafB, newLeafFrom(leafC, 20, 22, 24, 26, 28))
-		ensureLeafNodesMatch(t, leafC, newLeafFrom(leafD, 30, 34, 36, 40))
-		ensureLeafNodesMatch(t, leafD, newLeafFrom(leafE, 42, 44, 46, 48))
-		ensureLeafNodesMatch(t, leafE, newLeafFrom(nil, 50, 52, 54, 56, 58))
+		ensureLeafNodesMatch(t, leafA, &leafNode[int, int]{
+			Runts:  []int{10, 12, 14, 16, 18},
+			Values: []int{10, 12, 14, 16, 18},
+			Next:   leafB,
+		})
+		ensureLeafNodesMatch(t, leafB, &leafNode[int, int]{
+			Runts:  []int{20, 22, 24, 26, 28},
+			Values: []int{20, 22, 24, 26, 28},
+			Next:   leafC,
+		})
+		ensureLeafNodesMatch(t, leafC, &leafNode[int, int]{
+			Runts:  []int{30, 34, 36, 40},
+			Values: []int{30, 34, 36, 40},
+			Next:   leafD,
+		})
+		ensureLeafNodesMatch(t, leafD, &leafNode[int, int]{
+			Runts:  []int{42, 44, 46, 48},
+			Values: []int{42, 44, 46, 48},
+			Next:   leafE,
+		})
+		ensureLeafNodesMatch(t, leafE, &leafNode[int, int]{
+			Runts:  []int{50, 52, 54, 56, 58},
+			Values: []int{50, 52, 54, 56, 58},
+			Next:   nil,
+		})
 	})
 }
 
@@ -1695,7 +2489,7 @@ func TestGenericDelete(t *testing.T) {
 
 		const order = 2
 
-		tree, err := NewGenericTree[int](order)
+		tree, err := NewGenericTree[int, int](order)
 		ensureError(t, err)
 		ensureValues(t, tree, nil)
 
@@ -1707,7 +2501,7 @@ func TestGenericDelete(t *testing.T) {
 		}
 
 		// Ensure all values can be found in the tree.
-		ensureValues(t, tree, []any{0, 1, 2, 3, 4, 5, 6, 7})
+		ensureValues(t, tree, []int{0, 1, 2, 3, 4, 5, 6, 7})
 
 		// NOTE: Only delete up to but not including the final value, so can
 		// verify when only a single datum remaining, the root should point to
@@ -1719,11 +2513,11 @@ func TestGenericDelete(t *testing.T) {
 			}
 		})
 
-		ensureValues(t, tree, []any{final})
+		ensureValues(t, tree, []int{final})
 
-		ensureNodesMatch(t, tree.root, &leafNode[int]{
+		ensureNodesMatch(t, tree.root, &leafNode[int, int]{
 			Runts:  []int{final},
-			Values: []any{final},
+			Values: []int{final},
 			Next:   nil,
 		})
 
@@ -1731,9 +2525,9 @@ func TestGenericDelete(t *testing.T) {
 		// empty leaf node.
 		tree.Delete(final)
 
-		ensureNodesMatch(t, tree.root, &leafNode[int]{
+		ensureNodesMatch(t, tree.root, &leafNode[int, int]{
 			Runts:  []int{},
-			Values: []any{},
+			Values: []int{},
 			Next:   nil,
 		})
 
@@ -1747,7 +2541,7 @@ func TestGenericDelete(t *testing.T) {
 	t.Run("small", func(t *testing.T) {
 		const order = 4
 
-		tree, err := NewGenericTree[int](order)
+		tree, err := NewGenericTree[int, int](order)
 		ensureError(t, err)
 		ensureValues(t, tree, nil)
 
@@ -1759,7 +2553,7 @@ func TestGenericDelete(t *testing.T) {
 		}
 
 		// Ensure all values can be found in the tree.
-		ensureValues(t, tree, []any{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15})
+		ensureValues(t, tree, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15})
 
 		// NOTE: Only delete up to but not including the final value, so can
 		// verify when only a single datum remaining, the root should point to
@@ -1771,11 +2565,11 @@ func TestGenericDelete(t *testing.T) {
 			}
 		})
 
-		ensureValues(t, tree, []any{final})
+		ensureValues(t, tree, []int{final})
 
-		ensureNodesMatch(t, tree.root, &leafNode[int]{
+		ensureNodesMatch(t, tree.root, &leafNode[int, int]{
 			Runts:  []int{final},
-			Values: []any{final},
+			Values: []int{final},
 			Next:   nil,
 		})
 
@@ -1783,9 +2577,9 @@ func TestGenericDelete(t *testing.T) {
 		// empty leaf node.
 		tree.Delete(final)
 
-		ensureNodesMatch(t, tree.root, &leafNode[int]{
+		ensureNodesMatch(t, tree.root, &leafNode[int, int]{
 			Runts:  []int{},
-			Values: []any{},
+			Values: []int{},
 			Next:   nil,
 		})
 
@@ -1801,7 +2595,7 @@ func TestGenericDelete(t *testing.T) {
 
 		const order = 32
 
-		tree, err := NewGenericTree[int](order)
+		tree, err := NewGenericTree[int, int](order)
 		ensureError(t, err)
 		ensureValues(t, tree, nil)
 
@@ -1822,9 +2616,9 @@ func TestGenericDelete(t *testing.T) {
 			}
 		})
 
-		ensureNodesMatch(t, tree.root, &leafNode[int]{
+		ensureNodesMatch(t, tree.root, &leafNode[int, int]{
 			Runts:  []int{},
-			Values: []any{},
+			Values: []int{},
 			Next:   nil,
 		})
 
