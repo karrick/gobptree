@@ -4,33 +4,33 @@ import (
 	"github.com/karrick/gobptree"
 )
 
+const order = 64
+
 type SyncSetInt64 struct {
-	tree *gobptree.GenericTree[int64]
+	tree *gobptree.GenericTree[int64, struct{}]
 }
 
 func NewSyncSetInt64() *SyncSetInt64 {
-	tree, _ := gobptree.NewGenericTree[int64](64)
+	tree, err := gobptree.NewGenericTree[int64, struct{}](order)
+	if err != nil {
+		panic(err)
+	}
 	return &SyncSetInt64{tree: tree}
 }
 
 func (s *SyncSetInt64) GetItems() []int64 {
-	var items []int64
-	scanner := s.tree.NewScanner(0)
+	var keys []int64
+	scanner := s.tree.NewScannerAll()
 	for scanner.Scan() {
-		item, _ := scanner.Pair()
-		items = append(items, item)
+		key, _ := scanner.Pair()
+		keys = append(keys, key)
 	}
 	scanner.Close()
-	return items
-}
-
-func updateTreeCallback(any, bool) any {
-	return nil
+	return keys
 }
 
 func (s *SyncSetInt64) Set(item int64) {
 	s.tree.Insert(item, struct{}{})
-	// s.tree.Update(item, updateTreeCallback)
 }
 
 func (s *SyncSetInt64) Exists(item int64) bool {
