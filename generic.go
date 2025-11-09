@@ -383,12 +383,17 @@ func (n *leafNode[K, V]) count() int { return len(n.Runts) }
 func (n *leafNode[K, V]) deleteKey(minSize int, key K) bool {
 	index := searchGreaterThanOrEqualTo(key, n.Runts)
 	if index == len(n.Runts) || key != n.Runts[index] {
+		// Key not present; because not changing size, assume node still has
+		// minimum number of elements.
 		return true
 	}
+	// Key is present; remove it.
 	copy(n.Runts[index:], n.Runts[index+1:])
 	copy(n.Values[index:], n.Values[index+1:])
 	n.Runts = n.Runts[:len(n.Runts)-1]
 	n.Values = n.Values[:len(n.Values)-1]
+	// Because removed a key, must recheck whether it still has the minimum
+	// size number of elements.
 	return len(n.Runts) >= minSize
 }
 

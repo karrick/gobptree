@@ -2543,7 +2543,7 @@ func TestGenericDelete(t *testing.T) {
 	// t.Skip("re-enable after insertion tests working")
 
 	t.Run("order 2", func(t *testing.T) {
-		t.Skip("FIXME: order of 2 panics")
+		// t.Skip("FIXME: order of 2 panics")
 
 		tree, err := NewGenericTree[int, int](2)
 		ensureError(t, err)
