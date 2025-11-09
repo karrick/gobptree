@@ -29,6 +29,16 @@ func (s *SyncSetInt64) GetItems() []int64 {
 	return keys
 }
 
+func (s *SyncSetInt64) Len() int {
+	var l int
+	scanner := s.tree.NewScannerAll()
+	for scanner.Scan() {
+		l++
+	}
+	scanner.Close()
+	return l
+}
+
 func (s *SyncSetInt64) Set(item int64) {
 	s.tree.Insert(item, struct{}{})
 }
@@ -40,14 +50,4 @@ func (s *SyncSetInt64) Exists(item int64) bool {
 
 func (s *SyncSetInt64) Delete(item int64) {
 	s.tree.Delete(item)
-}
-
-func (s *SyncSetInt64) Len() int {
-	var l int
-	scanner := s.tree.NewScanner(0)
-	for scanner.Scan() {
-		l++
-	}
-	scanner.Close()
-	return l
 }
