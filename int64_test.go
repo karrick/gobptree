@@ -2,7 +2,6 @@ package gobptree
 
 import (
 	"fmt"
-	// "strconv"
 	"testing"
 )
 
@@ -239,7 +238,7 @@ func int64InternalFrom(items ...int64Node) *int64InternalNode {
 ////////////////////////////////////////
 
 func ensureInt64Leaf(t *testing.T, actual, expected *int64LeafNode) {
-	// t.Helper()
+	t.Helper()
 
 	if got, want := len(actual.runts), len(expected.runts); got != want {
 		t.Errorf("length(runts) GOT: %v; WANT: %v", got, want)
@@ -248,26 +247,24 @@ func ensureInt64Leaf(t *testing.T, actual, expected *int64LeafNode) {
 		t.Errorf("length(values) GOT: %v; WANT: %v", got, want)
 	}
 	for i := 0; i < len(actual.runts) && i < len(expected.runts); i++ {
-		// t.Run(strconv.Itoa(i), func(t *testing.T) {
 		if got, want := actual.runts[i], expected.runts[i]; got != want {
-			t.Errorf("runts[%d] GOT: %#v; WANT: %#v", i, got, want)
+			t.Errorf("runts[%d] GOT: %v; WANT: %v", i, got, want)
 		}
 		if got, want := actual.values[i], expected.values[i]; got != want {
-			t.Errorf("values[%d] GOT: %T(%v); WANT: %T(%v)", i, got, got, want, want)
+			t.Errorf("values[%d] GOT: %v; WANT: %v", i, got, want)
 		}
-		// })
 	}
 	// ensureInt64Leaf(t, actual.next, expected.next)
 	if got, want := actual.next, expected.next; got != want {
 		t.Errorf("next GOT: %v; WANT: %v", got, want)
 	}
-	// if t.Failed() {
-	// 	t.Errorf("\nGOT:\n\t%#v\nWANT:\n\t%#v", actual, expected)
-	// }
+	if t.Failed() {
+		t.Errorf("\nGOT:\n\t%#v\nWANT:\n\t%#v", actual, expected)
+	}
 }
 
 func ensureInt64Internal(t *testing.T, a, e *int64InternalNode) {
-	// t.Helper()
+	t.Helper()
 
 	if got, want := len(a.runts), len(e.runts); got != want {
 		t.Errorf("length(runts) GOT: %v; WANT: %v", got, want)
@@ -284,7 +281,7 @@ func ensureInt64Internal(t *testing.T, a, e *int64InternalNode) {
 }
 
 func ensureInt64Node(t *testing.T, actual, expected int64Node) {
-	// t.Helper()
+	t.Helper()
 
 	switch e := expected.(type) {
 	case *int64LeafNode:
@@ -349,40 +346,6 @@ func TestInternalInt64NodeInsertSmallerKey(t *testing.T) {
 	if got, want := ni.runts[0], int64(11); got != want {
 		t.Fatalf("GOT: %v; WANT: %v", got, want)
 	}
-}
-
-func TestInt64Insert(t *testing.T) {
-	t.Skip("FIXME")
-
-	tree, _ := NewInt64Tree(4)
-
-	t.Run("0", func(t *testing.T) {
-		tree.Insert(0, int64(0))
-		ensureInt64Node(t, tree.root, int64LeafFrom(nil, 0))
-	})
-
-	t.Run("1", func(t *testing.T) {
-		tree.Insert(1, int64(1))
-		ensureInt64Node(t, tree.root, int64LeafFrom(nil, 0, 1))
-	})
-
-	t.Run("2", func(t *testing.T) {
-		tree.Insert(2, int64(2))
-		ensureInt64Node(t, tree.root, int64LeafFrom(nil, 0, 1, 2))
-	})
-
-	t.Run("3", func(t *testing.T) {
-		tree.Insert(3, int64(3))
-		ensureInt64Node(t, tree.root, int64LeafFrom(nil, 0, 1, 2, 3))
-	})
-
-	t.Run("4", func(t *testing.T) {
-		leafB := int64LeafFrom(nil, 3, 4)
-		leafA := int64LeafFrom(leafB, 0, 1, 2)
-
-		tree.Insert(4, int64(4))
-		ensureInt64Node(t, tree.root, int64InternalFrom(leafA, leafB))
-	})
 }
 
 func TestInt64LeafNodeMaybeSplit(t *testing.T) {
