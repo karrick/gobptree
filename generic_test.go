@@ -2550,7 +2550,6 @@ func TestGenericDelete(t *testing.T) {
 		ensureValues(t, tree, nil)
 
 		values := rand.Perm(8)
-		final := values[len(values)-1]
 
 		for _, v := range values {
 			tree.Insert(v, v)
@@ -2569,6 +2568,7 @@ func TestGenericDelete(t *testing.T) {
 			}
 		})
 
+		final := values[len(values)-1]
 		ensureValues(t, tree, []int{final})
 
 		ensureNodesMatch(t, tree.root, &leafNode[int, int]{
@@ -2623,27 +2623,29 @@ func TestGenericDelete(t *testing.T) {
 		final := values[len(values)-1]
 		ensureValues(t, tree, []int{final})
 
-		// ensureNodesMatch(t, tree.root, &leafNode[int, int]{
-		// 	Runts:  []int{final},
-		// 	Values: []int{final},
-		// 	Next:   nil,
-		// })
+		if false {
+			ensureNodesMatch(t, tree.root, &leafNode[int, int]{
+				Runts:  []int{final},
+				Values: []int{final},
+				Next:   nil,
+			})
 
-		// // NOTE: Now delete the final node, and ensure the root points to an
-		// // empty leaf node.
-		// tree.Delete(final)
+			// NOTE: Now delete the final node, and ensure the root points to an
+			// empty leaf node.
+			tree.Delete(final)
 
-		// ensureNodesMatch(t, tree.root, &leafNode[int, int]{
-		// 	Runts:  []int{},
-		// 	Values: []int{},
-		// 	Next:   nil,
-		// })
+			ensureNodesMatch(t, tree.root, &leafNode[int, int]{
+				Runts:  []int{},
+				Values: []int{},
+				Next:   nil,
+			})
 
-		// // NOTE: Should be able to delete from an empty tree without
-		// // consequence.
-		// t.Run("delete from empty tree", func(t *testing.T) {
-		// 	tree.Delete(final)
-		// })
+			// NOTE: Should be able to delete from an empty tree without
+			// consequence.
+			t.Run("delete from empty tree", func(t *testing.T) {
+				tree.Delete(final)
+			})
+		}
 	})
 
 	t.Run("order 32", func(t *testing.T) {
