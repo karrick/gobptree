@@ -33,6 +33,7 @@ methods, each of which is described below.
   * Search(key)
   * Update(key, callback)
   * NewScanner(key)
+  * NewScannerAll()
 
 Insertions in all of the B+Tree data structures from this library are
 highly parallelizable, because the nodes will be pre-emptively split
@@ -60,27 +61,28 @@ the value provided by a callback's return value. If the specified key
 was not found, `Update` still invokes the callback function and stores
 its return value in the tree as a new key-value pair.
 
-Additionally this library provides a `NewScanner` function that
-returns a cursor that allows enumeration of all nodes equal to or
-greater than the specified key. The cursor data structure returned by
-each of the B+Tree structures' `NewScanner` method each provide the
-following interface. The cursor is designed to be used somewhat
-similarly to `bufio.Scanner`, and an example is provided.
+Additionally this library provides a `NewScanner` function that returns a
+cursor that allows enumeration of all nodes equal to or greater than the
+specified key in ascending order of the keys. This library also provides
+`NewScannerAll` function that returns a cursor that enumerates every key in
+ascending order. The cursor data structure returned by each of the B+Tree
+structures' `NewScanner` or `NewScannerAll` methods each provide the following
+interface. The cursor is designed to be used somewhat similarly to
+`bufio.Scanner`, and an example is provided.
 
   * Close: releases the resources held by the cursor early
   * Pair: returns the key-value pair referenced by the cursor
   * Scan: returns true when additional key-value pairs remain
 
-For example, if a tree has keys for all int64 values from 0 through
-1000, calling `NewScanner(10)` will return a scanner that lazily
-iterates through all key-value pairs from 10 through 100. However, if
-the tree held all odd values from 1 to 100, `NewScanner(10)` would
-return a cursor that lazily enumerated all key-value pairs from 11
-to 99. Note that if one go-routine is walking through values from the
-tree while another go-routine adds a new value, the new value will be
-included in the enumeration provided the insertion completes before
-the enumeration arrives at the specified leaf node where the key is
-found.
+For example, if a tree has keys for all int64 values from 0 through 1000,
+calling `NewScanner(10)` will return a scanner that lazily iterates through
+all key-value pairs from 10 through 100. However, if the tree held all odd
+values from 1 to 100, `NewScanner(10)` would return a cursor that lazily
+enumerated all key-value pairs from 11 to 99. Note that if one goroutine is
+walking through values from the tree while another goroutine adds a new value,
+the new value will be included in the enumeration provided the insertion
+completes before the enumeration arrives at the specified leaf node where the
+key is found.
 
 ## Overview [![GoDoc](https://godoc.org/github.com/karrick/gobptree?status.svg)](https://godoc.org/github.com/karrick/gobptree)
 
