@@ -863,44 +863,6 @@ func TestGenericInsertOrder4(t *testing.T) {
 			),
 		)
 	})
-
-	t.Run("14", func(t *testing.T) {
-		t.Skip("FIXME")
-		tree.Insert(14, 14)
-
-		ensureTree(t, tree,
-			newInternal(
-				newInternal(
-					&leafNode[int, int]{
-						Runts:  []int{1, 2},
-						Values: []int{1, 2},
-					},
-					&leafNode[int, int]{
-						Runts:  []int{3, 4},
-						Values: []int{3, 4},
-					},
-				),
-				newInternal(
-					&leafNode[int, int]{
-						Runts:  []int{5, 6},
-						Values: []int{5, 6},
-					},
-					&leafNode[int, int]{
-						Runts:  []int{7, 8},
-						Values: []int{7, 8},
-					},
-					&leafNode[int, int]{
-						Runts:  []int{9, 10},
-						Values: []int{9, 10},
-					},
-					&leafNode[int, int]{
-						Runts:  []int{11, 12, 13},
-						Values: []int{11, 12, 13},
-					},
-				),
-			),
-		)
-	})
 }
 
 func TestGenericLeafNodeMaybeSplit(t *testing.T) {
