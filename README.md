@@ -1,32 +1,39 @@
 # gobptree
 
-Provides several _nearly_ non-blocking B+Tree data
-structures. Deletions fail the not-blocking test because they must
-lock the tree from the root node down to the leaf node where a
-key-value pair is stored until the deletion completes. Insertions and
-Search functions are non-blocking.
+Provides several _nearly_ non-blocking B+Tree data structures. Deletions fail
+the not-blocking test because they must lock the tree from the root node down
+to the leaf node where a key-value pair is stored until the deletion
+completes. Insertions, Search, and Update functions are non-blocking.
 
+  * ComparableTree
+  * GenericTree
   * Int32Tree
   * Int64Tree
   * Uint32Tree
   * Uint64Tree
   * StringTree
-  * ComparableTree
 
-ComparableTree is designed to use any data structure type as a datum
-key that implements the Comparable interface. Namely, any data
-structure that has methods for both `Less(interface{}) bool`, and
-`ZeroValue() Comparable`. Examples of this flexible B+Tree
-implementation are provided in the `godoc` documentation as well as
-the test files for the ComparableTree type.
+`ComparableTree` is designed to use any data structure type as a datum key
+that implements the Comparable interface. Namely, any data structure that has
+methods for both `Less(interface{}) bool`, and `ZeroValue()
+Comparable`. Examples of this flexible B+Tree implementation are provided in
+the `godoc` documentation as well as the test files for the ComparableTree
+type.
 
-Other tree types are provided as optimized versions of their
-respective data types.
+`GenericTree` implements a B+Tree using Go generics, allowing callers to
+create a B+Tree that uses any type that satisfies the `cmp.Ordered` type
+constraint as keys, and that stores any data type, or values that satisfy any
+program specific type constraint. `GenericTree` is designed to replace the
+need for all other B+Tree data structures from this library, and is now used
+to implement those data structures.
+
+The other B+Tree data structures in this library are left over from before Go
+supported generics, and are all implemented using `GenericTree`.
 
 ---
 
-Every B+Tree data structure in this library provides the following
-methods, each of which is described below.
+Every B+Tree data structure in this library provides the following methods,
+each of which is described below.
 
   * Delete(key)
   * Insert(key, value)
@@ -35,31 +42,32 @@ methods, each of which is described below.
   * NewScanner(key)
   * NewScannerAll()
 
-Insertions in all of the B+Tree data structures from this library are
-highly parallelizable, because the nodes will be pre-emptively split
-while traversing down from the root to the leaf if necessary rather
-than having split nodes bubble back up from the bottom. This is not
-only faster, but allows the tree to release the lock on the parent
-node before visiting the child nodes, allowing other operations to
-continue in parallel that would otherwise block on the node lock.
+Insertions in all of the B+Tree data structures from this library are highly
+parallelizable, because the nodes will be pre-emptively split while traversing
+down from the root to the leaf if necessary rather than needing to split nodes
+as its bubbles back up from the leaf nodes. This is not only faster, but
+allows the tree to release the lock on the parent node before visiting the
+child nodes, allowing other operations to continue in parallel that would
+otherwise block on the node lock.
 
-Like `Insert`, B+Tree `Search` only holds the lock on each node until
-the appropriate child node is discovered, so they will not impede
-insertions or other search operations.
+Like `Insert`, B+Tree `Search` only holds the lock on each node until the
+appropriate child node is discovered, so they will not impede insertions or
+other search operations.
 
-In contrast to `Insert` and `Search`, however, invoking `Delete` from
-the tree, require the lock to be held on each node in the tree until
-the algorithm bubbles back up during the final stage of
-recursion. This is because the tree will not know whether or not nodes
-must borrow from their siblings or merge with their sibling until
-after the child node has completed its deletion operation.
+invoking `Delete` from the tree, in contrast to `Insert` and `Search`, does
+require the lock to be held on each node in the tree until the algorithm
+bubbles back up during the final stage of recursion. This is because the tree
+will not know whether or not nodes must borrow from their siblings or merge
+with their sibling until after the child node has completed its deletion
+operation.
 
-The `Update` method will search for the specified key and invoke the
-specified callback function with the key-value pair associated with
-that key, and then finally update the stored value for the key with
-the value provided by a callback's return value. If the specified key
-was not found, `Update` still invokes the callback function and stores
-its return value in the tree as a new key-value pair.
+The `Update` method will search for the specified key and invoke the specified
+callback function with the key-value pair associated with that key, and then
+finally update the stored value for the key with the value provided by a
+callback's return value. If the specified key was not found, `Update` still
+invokes the callback function and stores its return value in the tree as a new
+key-value pair. `Update` is lock-free, just like `Insert` and `Search`.
+`Insert` is implemented using `Update`.
 
 Additionally this library provides a `NewScanner` function that returns a
 cursor that allows enumeration of all nodes equal to or greater than the
@@ -103,11 +111,10 @@ func main() {
     const order = 64
 
     // Create a randomized list of int values from [0 to N).
-    rand.Seed(time.Now().Unix())
     randomizedValues := rand.Perm(oneMillion)
 
     // Create a B+Tree of the specified order, using int64 values as keys.
-    t, err := gobptree.NewInt64Tree(order)
+    t, err := gobptree.NewGenerictree[int64, struct{}](order)
     if err != nil {
         fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
         os.Exit(1)
@@ -120,15 +127,15 @@ func main() {
         t.Insert(int64(v), struct{}{})
     }
 
-    // Scan through the tree, collecting all keys starting with the specified
-    // key, or the next key in the tree.
+    // Scan through the tree collecting all keys.
     var sortedValues []int64
-    c := t.NewScanner(0)
+    c := t.NewScannerAll()
     for c.Scan() {
         // Get the key-value pair for this datum, but only collect the key.
         k, _ := c.Pair()
         sortedValues = append(sortedValues, k)
     }
+	c.Close()
 
     // Ensure enumerated order of the keys are in fact sorted, in other words, a
     // slice of int64 values from [0 to N).
