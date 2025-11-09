@@ -866,23 +866,8 @@ func TestGenericInsertOrder4(t *testing.T) {
 
 	t.Run("14", func(t *testing.T) {
 		t.Skip("FIXME")
-
 		tree.Insert(14, 14)
 
-		// ensureTree(t, tree,
-		// 	newInternal(
-		// 		newInternal(
-		// 			newLeaf[int,int](1, 2),
-		// 			newLeaf[int,int](3, 4),
-		// 		),
-		// 		newInternal(
-		// 			newLeaf[int,int](5, 6),
-		// 			newLeaf[int,int](7, 8),
-		// 			newLeaf[int,int](9, 10),
-		// 			newLeaf[int,int](11, 12, 13),
-		// 		),
-		// 	),
-		// )
 		ensureTree(t, tree,
 			newInternal(
 				newInternal(
@@ -896,26 +881,22 @@ func TestGenericInsertOrder4(t *testing.T) {
 					},
 				),
 				newInternal(
-					newInternal(
-						&leafNode[int, int]{
-							Runts:  []int{5, 6},
-							Values: []int{5, 6},
-						},
-						&leafNode[int, int]{
-							Runts:  []int{7, 8},
-							Values: []int{7, 8},
-						},
-					),
-					newInternal(
-						&leafNode[int, int]{
-							Runts:  []int{9, 10},
-							Values: []int{9, 10},
-						},
-						&leafNode[int, int]{
-							Runts:  []int{11, 12, 13, 14},
-							Values: []int{11, 12, 13, 14},
-						},
-					),
+					&leafNode[int, int]{
+						Runts:  []int{5, 6},
+						Values: []int{5, 6},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{7, 8},
+						Values: []int{7, 8},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{9, 10},
+						Values: []int{9, 10},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{11, 12, 13},
+						Values: []int{11, 12, 13},
+					},
 				),
 			),
 		)
@@ -1191,6 +1172,125 @@ func TestInsertIntoSingleLeafGenericTree(t *testing.T) {
 				Values: []int{30, 40, 50},
 			})
 		})
+	})
+}
+
+func TestGenericRebalance(t *testing.T) {
+	gimme := func(order, item_count int) *GenericTree[int, int] {
+		tree, err := NewGenericTree[int, int](order)
+		ensureError(t, err)
+
+		for i := 1; i <= item_count; i++ {
+			tree.Insert(i, i)
+		}
+
+		return tree
+	}
+
+	t.Run("when rebalance count is -1", func(t *testing.T) {
+		const order = 4
+		const items = 5
+		rebalance := -1
+		tree := gimme(order, items)
+		ensureError(t, tree.Rebalance(rebalance), "cannot rebalance")
+	})
+
+	t.Run("when rebalance count is 0", func(t *testing.T) {
+		const order = 4
+		const items = 5
+		rebalance := 0
+		tree := gimme(order, items)
+		ensureError(t, tree.Rebalance(rebalance), "cannot rebalance")
+	})
+
+	t.Run("when rebalance count is 1", func(t *testing.T) {
+		const order = 4
+		const items = 5
+		rebalance := 1
+		tree := gimme(order, items)
+		ensureError(t, tree.Rebalance(rebalance), "cannot rebalance")
+	})
+
+	t.Run("when rebalance count is 2", func(t *testing.T) {
+		const order = 4
+		const items = 5
+		rebalance := 2
+		tree := gimme(order, items)
+
+		ensureError(t, tree.Rebalance(rebalance))
+
+		ensureTree(t, tree,
+			newInternal(
+				newInternal(
+					&leafNode[int, int]{
+						Runts:  []int{1, 2},
+						Values: []int{1, 2},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{3, 4},
+						Values: []int{3, 4},
+					},
+				),
+				newInternal(
+					&leafNode[int, int]{
+						Runts:  []int{5},
+						Values: []int{5},
+					},
+				),
+			),
+		)
+	})
+
+	t.Run("when rebalance count is less than order", func(t *testing.T) {
+		const order = 4
+		const items = 5
+		rebalance := order - 1
+		tree := gimme(order, items)
+
+		ensureError(t, tree.Rebalance(rebalance))
+
+		ensureTree(t, tree,
+			newInternal(
+				&leafNode[int, int]{
+					Runts:  []int{1, 2, 3},
+					Values: []int{1, 2, 3},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{4, 5},
+					Values: []int{4, 5},
+				},
+			),
+		)
+	})
+
+	t.Run("when rebalance count is equal to order", func(t *testing.T) {
+		const order = 4
+		const items = 5
+		rebalance := order
+		tree := gimme(order, items)
+
+		ensureError(t, tree.Rebalance(rebalance))
+
+		ensureTree(t, tree,
+			newInternal(
+				&leafNode[int, int]{
+					Runts:  []int{1, 2, 3, 4},
+					Values: []int{1, 2, 3, 4},
+				},
+				&leafNode[int, int]{
+					Runts:  []int{5},
+					Values: []int{5},
+				},
+			),
+		)
+	})
+
+	t.Run("when rebalance count is larger than order", func(t *testing.T) {
+		const order = 4
+		const items = 5
+		rebalance := order + 1
+		tree := gimme(order, items)
+		ensureError(t, tree.Rebalance(rebalance), "cannot rebalance")
 	})
 }
 

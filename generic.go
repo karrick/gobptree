@@ -504,6 +504,117 @@ func (t *GenericTree[K, V]) Insert(key K, value V) {
 	t.Update(key, func(_ V, _ bool) V { return value })
 }
 
+// Rebalance will rebalance the tree while ensuring that each node has no more
+// than the number of elements provided as an argument to the method. For
+// instance, to rebalance an order 64 tree so each node contains exactly 32
+// children (except perhaps the final leaf node and its ancestors), one would
+// invoke Rebalance(32). This could also fully pack a tree so each node is as
+// full as possible, Rebalance(64). Both of these calls would speed up all
+// tree traversals by ensuring a balanced tree. However, they can also leave
+// room for additional growth throughout the tree's structure.
+//
+// NOTE: count must be between 2 and the tree order, inclusive: [2, order].
+func (t *GenericTree[K, V]) Rebalance(count int) error {
+	t.rootMutex.Lock()
+	defer t.rootMutex.Unlock()
+
+	if count < 2 {
+		return fmt.Errorf("cannot rebalance with count less than 2: %d", count)
+	}
+	if count > t.order {
+		return fmt.Errorf("cannot rebalance with count higher than tree order: %d > %d", count, t.order)
+	}
+
+	var bottomNodes []node[K, V]
+
+	leaf := &leafNode[K, V]{
+		Runts:  make([]K, 0, t.order),
+		Values: make([]V, 0, t.order),
+	}
+
+	scanner := t.NewScannerAll()
+	for scanner.Scan() {
+		if len(leaf.Runts) == count {
+			nextLeaf := &leafNode[K, V]{
+				Runts:  make([]K, 0, t.order),
+				Values: make([]V, 0, t.order),
+			}
+			leaf.Next = nextLeaf
+			// fmt.Fprintf(os.Stderr, "FINISHED LEAF: %#v\n", leaf)
+			bottomNodes = append(bottomNodes, leaf)
+			leaf = nextLeaf
+		}
+		runt, value := scanner.Pair()
+		leaf.Runts = append(leaf.Runts, runt)
+		leaf.Values = append(leaf.Values, value)
+	}
+
+	err := scanner.Close()
+	if err != nil {
+		return err
+	}
+
+	if len(leaf.Runts) > 0 {
+		// fmt.Fprintf(os.Stderr, "FINISHED LEAF: %#v\n", leaf)
+		bottomNodes = append(bottomNodes, leaf)
+	}
+
+	var topNodes []node[K, V]
+
+	internal := &internalNode[K, V]{
+		Runts:    make([]K, 0, t.order),
+		Children: make([]node[K, V], 0, t.order),
+	}
+
+	// Continue building new layers on top of bottom nodes until bottom nodes
+	// has only a single element.
+	for len(bottomNodes) > 1 {
+		// for _, n := range bottomNodes {
+		// 	fmt.Fprintf(os.Stderr, "BOTTOM NODE: %v\n", n)
+		// }
+		for _, bottomNode := range bottomNodes {
+			if len(internal.Runts) == count {
+				// fmt.Fprintf(os.Stderr, "FINISHED INTERNAL A: %v\n", internal)
+				// for _, c := range internal.Children {
+				// 	fmt.Fprintf(os.Stderr, "\tCHILD: %v\n", c)
+				// }
+				topNodes = append(topNodes, internal)
+				internal = &internalNode[K, V]{
+					Runts:    make([]K, 0, t.order),
+					Children: make([]node[K, V], 0, t.order),
+				}
+			}
+			internal.Runts = append(internal.Runts, bottomNode.smallest())
+			internal.Children = append(internal.Children, bottomNode)
+		}
+		if len(internal.Runts) > 0 {
+			// fmt.Fprintf(os.Stderr, "FINISHED INTERNAL B: %v\n", internal)
+			// for _, c := range internal.Children {
+			// 	fmt.Fprintf(os.Stderr, "\tCHILD: %v\n", c)
+			// }
+			topNodes = append(topNodes, internal)
+			internal = &internalNode[K, V]{
+				Runts:    make([]K, 0, t.order),
+				Children: make([]node[K, V], 0, t.order),
+			}
+		}
+		// for _, n := range topNodes {
+		// 	fmt.Fprintf(os.Stderr, "TOP NODE: %v\n", n)
+		// }
+		bottomNodes = topNodes
+		topNodes = topNodes[:0]
+		// topNodes = nil
+	}
+
+	t.root = bottomNodes[0]
+
+	// IMPORTANT: If refactor so this tree always starts with internal node at
+	// the root, then following logic must be updated when only a single leaf
+	// node.
+
+	return nil
+}
+
 // Search returns the value associated with key from the tree.
 func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 	var value V

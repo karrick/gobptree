@@ -37,10 +37,11 @@ each of which is described below.
 
   * Delete(key)
   * Insert(key, value)
-  * Search(key)
-  * Update(key, callback)
   * NewScanner(key)
   * NewScannerAll()
+  * Rebalance(int)
+  * Search(key)
+  * Update(key, callback)
 
 Insertions in all of the B+Tree data structures from this library are highly
 parallelizable, because the nodes will be pre-emptively split while traversing
@@ -54,12 +55,23 @@ Like `Insert`, B+Tree `Search` only holds the lock on each node until the
 appropriate child node is discovered, so they will not impede insertions or
 other search operations.
 
-invoking `Delete` from the tree, in contrast to `Insert` and `Search`, does
+Invoking `Delete` from the tree, in contrast to `Insert` and `Search`, does
 require the lock to be held on each node in the tree until the algorithm
 bubbles back up during the final stage of recursion. This is because the tree
 will not know whether or not nodes must borrow from their siblings or merge
 with their sibling until after the child node has completed its deletion
 operation.
+
+The `Rebalance` method will rebalance the B+Tree while ensuring that each node
+has no more than the number of elements provided as an argument to the
+method. For instance, to rebalance an order 64 tree so each node contains
+exactly 32 children (except perhaps the final leaf node and its ancestors),
+one would invoke `Rebalance(32)`. This could also fully pack a tree so each
+node is as full as possible, `Rebalance(64)`. Both of these calls would speed
+up all tree traversals by ensuring a balanced tree. However, they can also
+leave room for additional growth throughout the tree's structure. This method
+must be invoked with a count between 2 and the tree order, inclusive: [2,
+order].
 
 The `Update` method will search for the specified key and invoke the specified
 callback function with the key-value pair associated with that key, and then
