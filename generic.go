@@ -208,8 +208,9 @@ func (n *internalNode[K, V]) deleteKey(minSize int, key K) bool {
 	// POST: If left, it is exactly minimum size.
 
 	// POST: Could not adopt a single node from either side, because either
-	// child is left or right edge and has no siblings to its left or right, or
-	// the siblings it does have each only has the minimum number of Children.
+	// child is left or right edge and has no siblings to its left or right,
+	// or the siblings it does have each only has the minimum number of
+	// Children.
 
 	if leftCount > 0 {
 		leftSibling.absorbRight(child)
@@ -442,7 +443,8 @@ func (n *leafNode[K, V]) smallest() K {
 
 func (n *leafNode[K, V]) unlock() { /* l.mutex.Unlock() */ }
 
-// GenericTree is a B+Tree of elements using Int64 keys.
+// GenericTree is a B+Tree of elements using key whose type satisfy the
+// cmp.Ordered constraint.
 type GenericTree[K cmp.Ordered, V any] struct {
 	root      node[K, V]
 	order     int
@@ -537,11 +539,11 @@ func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 }
 
 // Update searches for key and invokes callback with key's associated value,
-// waits for callback to return a new value, and stores callback's return value
-// as the new value for key. When key is not found, callback will be invoked
-// with nil and false to signify the key was not found. After this method
-// returns, the key will exist in the tree with the new value returned by the
-// callback function.
+// waits for callback to return a new value, and stores callback's return
+// value as the new value for key. When key is not found, callback will be
+// invoked with nil and false to signify the key was not found. After this
+// method returns, the key will exist in the tree with the new value returned
+// by the callback function.
 func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
 	var keyZeroValue K
 	var valueZeroValue V
@@ -617,9 +619,9 @@ func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
 
 	leaf := n.(*leafNode[K, V])
 
-	// When the new value will become the first element in a leaf, which is only
-	// possible for an empty tree, or when new key comes after final leaf runt,
-	// a simple append will suffice.
+	// When the new value will become the first element in a leaf, which is
+	// only possible for an empty tree, or when new key comes after final leaf
+	// runt, a simple append will suffice.
 	if len(leaf.Runts) == 0 || key > leaf.Runts[len(leaf.Runts)-1] {
 		value := callback(valueZeroValue, false)
 		leaf.Runts = append(leaf.Runts, key)
