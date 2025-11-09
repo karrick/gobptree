@@ -33,7 +33,7 @@ loop:
 		}
 		return lo
 	}
-	if key > v {
+	if v < key {
 		if lo = m + 1; lo < hi {
 			goto loop
 		}
