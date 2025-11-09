@@ -455,23 +455,19 @@ func TestGenericInsertOrder2(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
 		tree.Insert(1, 1)
 
-		want := &leafNode[int, int]{
+		ensureTree(t, tree, &leafNode[int, int]{
 			Runts:  []int{1},
 			Values: []int{1},
-		}
-
-		ensureTree(t, tree, want)
+		})
 	})
 
 	t.Run("2", func(t *testing.T) {
 		tree.Insert(2, 2)
 
-		want := &leafNode[int, int]{
+		ensureTree(t, tree, &leafNode[int, int]{
 			Runts:  []int{1, 2},
 			Values: []int{1, 2},
-		}
-
-		ensureTree(t, tree, want)
+		})
 	})
 
 	t.Run("3", func(t *testing.T) {
@@ -552,7 +548,6 @@ func TestGenericInsertOrder2(t *testing.T) {
 	})
 
 	t.Run("6", func(t *testing.T) {
-		t.Skip("FIXME")
 		tree.Insert(6, 6)
 
 		ensureTree(t, tree,
@@ -570,30 +565,28 @@ func TestGenericInsertOrder2(t *testing.T) {
 				newInternal(
 					newInternal(
 						newInternal(
-							newInternal(
-								&leafNode[int, int]{
-									Runts:  []int{2},
-									Values: []int{2},
-								},
-							),
+							&leafNode[int, int]{
+								Runts:  []int{2},
+								Values: []int{2},
+							},
+						),
+					),
+					newInternal(
+						newInternal(
+							&leafNode[int, int]{
+								Runts:  []int{3},
+								Values: []int{3},
+							},
 						),
 						newInternal(
-							newInternal(
-								&leafNode[int, int]{
-									Runts:  []int{3},
-									Values: []int{3},
-								},
-							),
-							newInternal(
-								&leafNode[int, int]{
-									Runts:  []int{4},
-									Values: []int{4},
-								},
-								&leafNode[int, int]{
-									Runts:  []int{5, 6},
-									Values: []int{5, 6},
-								},
-							),
+							&leafNode[int, int]{
+								Runts:  []int{4},
+								Values: []int{4},
+							},
+							&leafNode[int, int]{
+								Runts:  []int{5, 6},
+								Values: []int{5, 6},
+							},
 						),
 					),
 				),
