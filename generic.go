@@ -15,39 +15,38 @@ import (
 // searchGreaterThanOrEqualTo returns the index of the first value from values
 // that is greater than or equal to key.  search for index of runt that is
 // greater than or equal to key.
-func searchGreaterThanOrEqualTo[K cmp.Ordered](key K, values []K) int {
+func searchGreaterThanOrEqualTo[K cmp.Ordered](key K, keys []K) int {
 	var lo int
 
-	hi := len(values)
+	hi := len(keys)
 	if hi <= 1 {
 		return 0
 	}
 	hi--
 
 loop:
-	m := (lo + hi) >> 1
-	v := values[m]
-	if key < v {
-		if hi = m; lo < hi {
+	i := (lo + hi) >> 1
+	if key < keys[i] {
+		if hi = i; lo < hi {
 			goto loop
 		}
 		return lo
 	}
-	if v < key {
-		if lo = m + 1; lo < hi {
+	if keys[i] < key {
+		if lo = i + 1; lo < hi {
 			goto loop
 		}
 		return lo
 	}
-	return m
+	return i // match
 }
 
 // searchLessThanOrEqualTo returns the index of the first value from values
 // that is less than or equal to key.
-func searchLessThanOrEqualTo[K cmp.Ordered](key K, values []K) int {
-	index := searchGreaterThanOrEqualTo(key, values)
+func searchLessThanOrEqualTo[K cmp.Ordered](key K, keys []K) int {
+	index := searchGreaterThanOrEqualTo(key, keys)
 	// convert result to less than or equal to
-	if index == len(values) || key < values[index] {
+	if index == len(keys) || key < keys[index] {
 		if index > 0 {
 			return index - 1
 		}
