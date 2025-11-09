@@ -4,20 +4,21 @@ import (
 	"sync"
 )
 
-// Comparable data structures can be used as the keys for a ComparableTree. The
-// below is a trivial example of a comparable data structure using strings. The
-// ZeroValue method ought to return the zero-value for a data-structure.
+// Comparable data structures can be used as the keys for a
+// ComparableTree. The below is a trivial example of a comparable data
+// structure using strings. The ZeroValue method ought to return the
+// zero-value for a data-structure.
 //
 //	type String string
 //
-//	func (a String) Less(b interface{}) bool {
+//	func (a String) Less(b any) bool {
 //	    bs, ok := b.(String)
 //	    return ok && string(a) < string(bs)
 //	}
 //
 //	func (_ String) ZeroValue() Comparable { return String("") }
 type Comparable interface {
-	Less(interface{}) bool
+	Less(any) bool
 	ZeroValue() Comparable
 }
 
@@ -79,8 +80,8 @@ type comparableNode interface {
 	unlock()
 }
 
-// comparableInternalNode represents an internal node for a ComparableTree with
-// Comparable keys.
+// comparableInternalNode represents an internal node for a ComparableTree
+// with Comparable keys.
 type comparableInternalNode struct {
 	runts    []Comparable
 	children []comparableNode
@@ -169,8 +170,9 @@ func (i *comparableInternalNode) deleteKey(minSize int, key Comparable) bool {
 	// POST: If left, it is exactly minimum size.
 
 	// POST: Could not adopt a single node from either side, because either
-	// child is left or right edge and has no siblings to its left or right, or
-	// the siblings it does have each only has the minimum number of children.
+	// child is left or right edge and has no siblings to its left or right,
+	// or the siblings it does have each only has the minimum number of
+	// children.
 
 	if leftCount > 0 {
 		leftSibling.absorbRight(child)
@@ -239,7 +241,7 @@ func (i *comparableInternalNode) unlock() { i.mutex.Unlock() }
 // Comparable keys.
 type comparableLeafNode struct {
 	runts  []Comparable
-	values []interface{}
+	values []any
 	next   *comparableLeafNode // points to next leaf to allow enumeration
 	mutex  sync.Mutex
 }
@@ -318,7 +320,7 @@ func (l *comparableLeafNode) maybeSplit(order int) (comparableNode, comparableNo
 	newNodeRunts := order >> 1
 	sibling := &comparableLeafNode{
 		runts:  make([]Comparable, newNodeRunts, order),
-		values: make([]interface{}, newNodeRunts, order),
+		values: make([]any, newNodeRunts, order),
 		next:   l.next,
 	}
 	// Right half of this node moves to sibling.
@@ -348,8 +350,8 @@ type ComparableTree struct {
 	order int
 }
 
-// NewComparableTree returns a newly initialized ComparableTree of the specified
-// order.
+// NewComparableTree returns a newly initialized ComparableTree of the
+// specified order.
 func NewComparableTree(order int) (*ComparableTree, error) {
 	if err := checkOrder(order); err != nil {
 		return nil, err
@@ -357,7 +359,7 @@ func NewComparableTree(order int) (*ComparableTree, error) {
 	return &ComparableTree{
 		root: &comparableLeafNode{
 			runts:  make([]Comparable, 0, order),
-			values: make([]interface{}, 0, order),
+			values: make([]any, 0, order),
 		},
 		order: order,
 	}, nil
@@ -380,9 +382,9 @@ func (t *ComparableTree) Delete(key Comparable) {
 	}
 }
 
-// Insert inserts the key-value pair into the tree, replacing the existing value
-// with the new value if the key is already in the tree.
-func (t *ComparableTree) Insert(key Comparable, value interface{}) {
+// Insert inserts the key-value pair into the tree, replacing the existing
+// value with the new value if the key is already in the tree.
+func (t *ComparableTree) Insert(key Comparable, value any) {
 	n := t.root
 	n.lock()
 
@@ -445,9 +447,9 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 
 	ln := n.(*comparableLeafNode)
 
-	// When the new value will become the first element in a leaf, which is only
-	// possible for an empty tree, or when new key comes after final leaf runt,
-	// a simple append will suffice.
+	// When the new value will become the first element in a leaf, which is
+	// only possible for an empty tree, or when new key comes after final leaf
+	// runt, a simple append will suffice.
 	if len(ln.runts) == 0 || ln.runts[len(ln.runts)-1].Less(key) {
 		ln.runts = append(ln.runts, key)
 		ln.values = append(ln.values, value)
@@ -479,8 +481,8 @@ func (t *ComparableTree) Insert(key Comparable, value interface{}) {
 }
 
 // Search returns the value associated with key from the tree.
-func (t *ComparableTree) Search(key Comparable) (interface{}, bool) {
-	var value interface{}
+func (t *ComparableTree) Search(key Comparable) (any, bool) {
+	var value any
 	var ok bool
 	n := t.root
 	n.lock()
@@ -506,12 +508,12 @@ func (t *ComparableTree) Search(key Comparable) (interface{}, bool) {
 }
 
 // Update searches for key and invokes callback with key's associated value,
-// waits for callback to return a new value, and stores callback's return value
-// as the new value for key. When key is not found, callback will be invoked
-// with nil and false to signify the key was not found. After this method
-// returns, the key will exist in the tree with the new value returned by the
-// callback function.
-func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool) interface{}) {
+// waits for callback to return a new value, and stores callback's return
+// value as the new value for key. When key is not found, callback will be
+// invoked with nil and false to signify the key was not found. After this
+// method returns, the key will exist in the tree with the new value returned
+// by the callback function.
+func (t *ComparableTree) Update(key Comparable, callback func(any, bool) any) {
 	n := t.root
 	n.lock()
 
@@ -574,9 +576,9 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 
 	ln := n.(*comparableLeafNode)
 
-	// When the new value will become the first element in a leaf, which is only
-	// possible for an empty tree, or when new key comes after final leaf runt,
-	// a simple append will suffice.
+	// When the new value will become the first element in a leaf, which is
+	// only possible for an empty tree, or when new key comes after final leaf
+	// runt, a simple append will suffice.
 	if len(ln.runts) == 0 || ln.runts[len(ln.runts)-1].Less(key) {
 		value := callback(nil, false)
 		ln.runts = append(ln.runts, key)
@@ -608,15 +610,17 @@ func (t *ComparableTree) Update(key Comparable, callback func(interface{}, bool)
 	ln.unlock()
 }
 
-// NewScanner returns a cursor that iteratively returns key-value pairs from the
-// tree in ascending order starting at key, or if key is not found the next key,
-// and ending after all successive pairs have been returned. To enumerate all
-// values in a ComparableTree, invoke with key set to the smallest legal value.
+// NewScanner returns a cursor that iteratively returns key-value pairs from
+// the tree in ascending order starting at key, or if key is not found the
+// next key, and ending after all successive pairs have been returned. To
+// enumerate all values in a ComparableTree, invoke with key set to the
+// smallest legal value.
 //
 // NOTE: This function exists still holding the lock on one of the tree's leaf
-// nodes, which may block other operations on the tree that require modification
-// of the locked node. The leaf node is only unlocked either by closing the
-// Cursor, or after all key-value pairs have been visited using Scan.
+// nodes, which may block other operations on the tree that require
+// modification of the locked node. The leaf node is only unlocked either by
+// closing the Cursor, or after all key-value pairs have been visited using
+// Scan.
 func (t *ComparableTree) NewScanner(key Comparable) *ComparableCursor {
 	n := t.root
 	n.lock()
@@ -639,8 +643,8 @@ type ComparableCursor struct {
 }
 
 func newComparableCursor(l *comparableLeafNode, i int) *ComparableCursor {
-	// Initialize cursor with index one smaller than requested, so initial scan
-	// lines up the cursor to reference the desired key-value pair.
+	// Initialize cursor with index one smaller than requested, so initial
+	// scan lines up the cursor to reference the desired key-value pair.
 	return &ComparableCursor{l: l, i: i - 1}
 }
 
@@ -657,15 +661,15 @@ func (c *ComparableCursor) Close() error {
 }
 
 // Pair returns the key-value pair referenced by the cursor.
-func (c *ComparableCursor) Pair() (Comparable, interface{}) {
+func (c *ComparableCursor) Pair() (Comparable, any) {
 	return c.l.runts[c.i], c.l.values[c.i]
 }
 
-// Scan advances the cursor to reference the next key-value pair in the tree in
-// ascending order, and returns true when there is at least one more key-value
-// pair to be observed with the Pair method. If the final key-value pair has
-// already been observed, this unlocks the final leaf in the tree and returns
-// false.
+// Scan advances the cursor to reference the next key-value pair in the tree
+// in ascending order, and returns true when there is at least one more
+// key-value pair to be observed with the Pair method. If the final key-value
+// pair has already been observed, this unlocks the final leaf in the tree and
+// returns false.
 func (c *ComparableCursor) Scan() bool {
 	if c.i++; c.i == len(c.l.runts) {
 		if c.l.next == nil {
