@@ -68,458 +68,10 @@ type node[K cmp.Ordered, V any] interface {
 	maybeSplit(order int) (node[K, V], node[K, V])
 	rlock()
 	runlock()
-	runts() []K					// DEBUG
+	runts() []K // DEBUG
 	smallest() K
 	unlock()
 }
-
-// internalNode represents an internal node for a GenericTree with keys of a
-// cmp.Ordered type. Its data is stored in a pair of strided arrays, where
-// Runts[0] corresponds to the smallest key in Children[0], and so forth for
-// additional slice elements.
-type internalNode[K cmp.Ordered, V any] struct {
-	// Runts stores the smallest key value for the corresponding Children
-	// slice. Runts[n] corresponds to Children[n].
-	Runts []K
-
-	// Children stores pointers to additional nodes of the tree. Runts[n]
-	// corresponds to Chidlren[n].
-	Children []node[K, V]
-
-	// mutex guards access to this node.
-	mutex sync.Mutex
-}
-
-// absorbFromRight moves all of the sibling node's Runts and Children into
-// left node.
-//
-// NOTE: sibling must be locked before calling.
-func (left *internalNode[K, V]) absorbFromRight(sibling node[K, V]) {
-	right := sibling.(*internalNode[K, V])
-
-	left.Runts = append(left.Runts, right.Runts...)
-	left.Children = append(left.Children, right.Children...)
-
-	// Perhaps not strictly needed, but de-allocate sibling fields and release
-	// pointers.
-	right.Runts = nil
-	right.Children = nil
-}
-
-// adoptFromLeft moves one element from the sibling node to the right node,
-// after making room for it at the beginning of the right node's slices.
-//
-// NOTE: sibling must be locked before calling.
-func (right *internalNode[K, V]) adoptFromLeft(sibling node[K, V]) {
-	var keyZeroValue K
-
-	left := sibling.(*internalNode[K, V])
-
-	// Extend slices of the right node by appending the zero value of the key
-	// and pointer data types.
-	right.Runts = append(right.Runts, keyZeroValue)
-	right.Children = append(right.Children, nil)
-
-	// Shift elements of the right node to the right from 0 to 1.
-	copy(right.Runts[1:], right.Runts[0:])
-	copy(right.Children[1:], right.Children[0:])
-
-	// Copy the tail element of the left node to the head position of the
-	// right node.
-	index := len(left.Runts) - 1
-	right.Runts[0] = left.Runts[index]
-	right.Children[0] = left.Children[index]
-
-	// Shrink the left node by one.
-	left.Runts = left.Runts[:index]
-	left.Children = left.Children[:index]
-}
-
-// adoptFromRight moves one element from the sibling node to the left node.
-//
-// NOTE: sibling must be locked before calling.
-func (left *internalNode[K, V]) adoptFromRight(sibling node[K, V]) {
-	right := sibling.(*internalNode[K, V])
-
-	// Copy the head element of the right node to the tail position of the
-	// left node.
-	left.Runts = append(left.Runts, right.Runts[0])
-	left.Children = append(left.Children, right.Children[0])
-
-	// Shift elements of the right node to the left from 1 to 0.
-	copy(right.Runts[0:], right.Runts[1:])
-	copy(right.Children[0:], right.Children[1:])
-
-	// Shrink the right node by one.
-	index := len(right.Runts) - 1
-	right.Runts = right.Runts[:index]
-	right.Children = right.Children[:index]
-
-	// NOTE: The right smallest has changed.
-}
-
-func (n *internalNode[K, V]) count() int { return len(n.Runts) }
-
-// deleteKey removes key and its value from the node, returning true when the
-// node has at least minSize elements after the deletion, and returning false
-// when the node has fewer elements than minSize.
-func (n *internalNode[K, V]) deleteKey(minSize int, key K) bool {
-	n.lock()
-	defer n.unlock()
-
-	// Determine index of the child node where key would be stored.
-	index := searchLessThanOrEqualTo(key, n.Runts)
-
-	if false { fmt.Fprintf(os.Stderr, "internalNode.deleteKey(%v): BEFORE index: %d; keys: %v\n", key, index, n.Runts) ; }
-
-	// Acquire exclusive lock to the child node.
-	child := n.Children[index]
-	child.lock()
-	defer child.unlock()
-
-	// Delete the key from the child.
-	if child.deleteKey(minSize, key) {
-		// Recall that deleteKey returns true when after the delete the child
-		// node still has at least minSize elements.
-	if false { fmt.Fprintf(os.Stderr, "internalNode.deleteKey(%v): AFTER true index: %d; keys: %v\n", key, index, n.Runts) ; }
-		return true
-	}
-
-	// POST: child is too small; need to combine node with one of its
-	// immediate neighbors.
-
-	var leftSibling, rightSibling node[K, V]
-	var leftCount, rightCount int
-
-	// Because the child node is too small, we need to have it adopt one
-	// element from either its left or its right siblings. We will try the
-	// right sibling first to encourage left-leaning trees.
-
-	rightIndex := index + 1
-	if rightIndex < len(n.Runts) {
-		// When child has a right sibling, check whether the right sibling has
-		// more elements than the minimum:
-		rightSibling = n.Children[rightIndex]
-		
-		// Acquire exclusive access to the right sibling.
-		rightSibling.lock()
-		defer rightSibling.unlock()
-
-		rightCount = rightSibling.count()
-		if rightCount > minSize {
-			// When right sibling has more then the minimum number of
-			// elements, the child node can adopt a single element from its
-			// right sibling.
-			child.adoptFromRight(rightSibling)
-
-			// After the child node has adopted an element from its right
-			// sibling, this node, which is the parent to both, has a new runt
-			// value for the right sibling.
-			n.Runts[rightIndex] = rightSibling.smallest()
-
-			// After the child has adopted a single element from its sibling,
-			// it has exactly the minimum number of elements.
-			if false { fmt.Fprintf(os.Stderr, "internalNode.deleteKey(%v): (child adopted from right) runts: %v; child runts: %v; right runts: %v\n", key, n.Runts, child.runts(), rightSibling.runts()) ; }
-			return true
-		}
-	}
-
-	leftIndex := index - 1
-	if leftIndex >= 0 {
-		// When child has a left sibling, check whether the left sibling has
-		// more elements than the minimum:
-		leftSibling = n.Children[leftIndex]
-
-		// Acquire exclusive access to the left sibling.
-		leftSibling.lock()
-		defer leftSibling.unlock()
-
-		leftCount = leftSibling.count()
-		if leftCount > minSize {
-			// When left sibling has more then the minimum number of elements,
-			// the child node can adopt a single element from its left
-			// sibling.
-			child.adoptFromLeft(leftSibling)
-
-			// After the child has adopted a single element from its sibling,
-			// it has exactly the minimum number of elements.
-			if false { fmt.Fprintf(os.Stderr, "internalNode.deleteKey(%v): (child adopted from left) keys: %v\n", key, n.Runts) ; }
-			return true
-		}
-
-		// The child could not adopt an element from either its right or left
-		// sibling. Because the child does have a left sibling, have it absorb
-		// all of the child's elements, and eliminate the child.
-		leftSibling.absorbFromRight(child)
-
-		// Shift the runt values and children pointers one element to the left
-		// to eliminate the child node.
-		copy(n.Runts[index:], n.Runts[index+1:])
-		copy(n.Children[index:], n.Children[index+1:])
-
-		// Shrink both slices by one element.
-		n.Runts = n.Runts[:len(n.Runts)-1]
-		n.Children = n.Children[:len(n.Children)-1]
-
-		// This internal node has one fewer Children after the child was
-		// absorbed by its left sibling.
-		return len(n.Runts) >= minSize
-	}
-
-	if rightCount > 0 {
-		// The child could not adopt an element from its right sibling, and it
-		// has no left sibling. Therefore, have the child absorb all of the
-		// elements from its right sibling.
-		child.absorbFromRight(rightSibling)
-
-		// Shift the runt values and children pointers one element to the left
-		// to eliminate the right node.
-		copy(n.Runts[index+1:], n.Runts[index+2:])
-		copy(n.Children[index+1:], n.Children[index+2:])
-
-		// Shrink both slices by one element.
-		n.Runts = n.Runts[:len(n.Runts)-1]
-		n.Children = n.Children[:len(n.Children)-1]
-
-		// This internal node has one fewer Children after the child absorbed
-		// its right sibling.
-		if false { fmt.Fprintf(os.Stderr, "internalNode.deleteKey(%v): (child absorbed from right) keys: %v\n", key, n.Runts) ; }
-		return len(n.Runts) >= minSize
-	}
-
-	// panic("both left and right siblings have no Children")
-	if false { fmt.Fprintf(os.Stderr, "internalNode.deleteKey(%v): (no siblings) keys: %v\n", key, n.Runts) ; }
-	return false
-}
-
-func (n *internalNode[K, V]) isInternal() bool { return true }
-
-func (n *internalNode[K, V]) lock() { /* i.mutex.Lock() */ }
-
-// maybeSplit splits the node, giving half of its values to its new sibling,
-// when the node is too full to accept any more values. When it does return a
-// new right sibling, that node is locked.
-//
-// NOTE: This loop assumes the tree's order is a multiple of 2, which must be
-// guarded for at tree instantiation time.
-func (n *internalNode[K, V]) maybeSplit(order int) (node[K, V], node[K, V]) {
-	if len(n.Runts) < order {
-		return n, nil
-	}
-
-	newNodeRunts := order >> 1
-	sibling := &internalNode[K, V]{
-		Runts:    make([]K, newNodeRunts, order),
-		Children: make([]node[K, V], newNodeRunts, order),
-	}
-
-	// NOTE: Newly created sibling should be locked before attached to the
-	// tree in order to prevent a data race where another goroutine finds this
-	// new node.
-	sibling.lock()
-
-	// Right half of this node moves to sibling.
-	for j := 0; j < newNodeRunts; j++ {
-		sibling.Runts[j] = n.Runts[newNodeRunts+j]
-		sibling.Children[j] = n.Children[newNodeRunts+j]
-	}
-
-	// Clear the runts and children pointers from the original node.
-	n.Runts = n.Runts[:newNodeRunts]
-	n.Children = n.Children[:newNodeRunts]
-
-	return n, sibling
-}
-
-func (n *internalNode[K, V]) smallest() K {
-	if len(n.Runts) == 0 {
-		panic("internal node has no Children")
-	}
-	return n.Runts[0]
-}
-
-func (n *internalNode[K, V]) rlock()   { /* i.mutex.RLock() */ }
-func (n *internalNode[K, V]) runlock() { /* i.mutex.RUnlock() */ }
-func (n *internalNode[K, V]) unlock()  { /* i.mutex.Unlock() */ }
-func (n *internalNode[K, V]) runts() []K { return n.Runts } // DEBUG
-
-// internalNode represents a leaf node for a GenericTree with keys of
-// cmp.Ordered type. Its data is stored in a pair of strided arrays, where
-// Runts[0] corresponds to the value in Values[0], and so forth for additional
-// slice elements.
-type leafNode[K cmp.Ordered, V any] struct {
-	// Runts stores the key corresponding to the Values slice. Runts[n]
-	// corresponds to Values[n].
-	Runts []K
-
-	// Values stores values of the tree. Runts[n] corresponds to Values[n].
-	Values []V
-
-	Next *leafNode[K, V] // Next points to next leaf to allow enumeration
-
-	// mutex guards access to this node.
-	mutex sync.Mutex
-}
-
-// absorbFromRight moves all of the sibling node's Runts and Values into left
-// node, and sets the left's Next field to the value of the sibling's Next
-// field.
-//
-// NOTE: sibling must be locked before calling.
-func (left *leafNode[K, V]) absorbFromRight(sibling node[K, V]) {
-	right := sibling.(*leafNode[K, V])
-
-	if left.Next != right {
-		// Superfluous check
-		panic("cannot merge leaf with sibling other than next sibling")
-	}
-
-	left.Runts = append(left.Runts, right.Runts...)
-	left.Values = append(left.Values, right.Values...)
-	left.Next = right.Next
-
-	// Perhaps not strictly needed, but de-allocate sibling fields and release
-	// pointers.
-	right.Runts = nil
-	right.Values = nil
-	right.Next = nil
-}
-
-// adoptFromLeft moves one element from the sibling node to the right node,
-// after making room for it at the beginning of the right node's slices.
-//
-// NOTE: sibling must be locked before calling.
-func (right *leafNode[K, V]) adoptFromLeft(sibling node[K, V]) {
-	// TODO: Consider direct copy so do not need the zero values.
-	var keyZeroValue K
-	var valueZeroValue V
-
-	left := sibling.(*leafNode[K, V])
-
-	// Extend slices of the right node by appending the zero value of the key
-	// and value data types.
-	right.Runts = append(right.Runts, keyZeroValue)
-	right.Values = append(right.Values, valueZeroValue)
-
-	// Shift elements of the right node to the right from 0 to 1.
-	copy(right.Runts[1:], right.Runts[0:])
-	copy(right.Values[1:], right.Values[0:])
-
-	// Copy the tail element of the left node to the head position of the
-	// right node.
-	index := len(left.Runts) - 1
-	right.Runts[0] = left.Runts[index]
-	right.Values[0] = left.Values[index]
-
-	// Shrink the left node by one.
-	left.Runts = left.Runts[:index]
-	left.Values = left.Values[:index]
-}
-
-// adoptFromRight moves one element from the sibling node to the left node.
-//
-// NOTE: sibling must be locked before calling.
-func (left *leafNode[K, V]) adoptFromRight(sibling node[K, V]) {
-	right := sibling.(*leafNode[K, V])
-
-	// Copy the head element of the right node to the tail position of the
-	// left node.
-	left.Runts = append(left.Runts, right.Runts[0])
-	left.Values = append(left.Values, right.Values[0])
-
-	// Shift elements of the right node to the left from 1 to 0.
-	copy(right.Runts[0:], right.Runts[1:])
-	copy(right.Values[0:], right.Values[1:])
-
-	// Shrink the right node by one.
-	index := len(right.Runts) - 1
-	right.Runts = right.Runts[:index]
-	right.Values = right.Values[:index]
-}
-
-func (n *leafNode[K, V]) count() int { return len(n.Runts) }
-
-func (n *leafNode[K, V]) deleteKey(minSize int, key K) bool {
-	n.lock()
-	defer n.unlock()
-
-	if false { fmt.Fprintf(os.Stderr, "BEFORE leafNode.deleteKey(%v): keys: %v\n", key, n.Runts) ; }
-
-	index := searchGreaterThanOrEqualTo(key, n.Runts)
-	if index == len(n.Runts) || key != n.Runts[index] {
-		// When key is not present in the leaf node, there is nothing to be
-		// done. Return true because this has not shrunk this leaf node, and
-		// presumably it is still at least its minimum size.
-		return true
-	}
-
-	// When the key is present in the leaf node, remove it.
-
-	// Shift all keys after the index to the left by one slot.
-	copy(n.Runts[index:], n.Runts[index+1:])
-	copy(n.Values[index:], n.Values[index+1:])
-
-	// Shrink the slices by one.
-	n.Runts = n.Runts[:len(n.Runts)-1]
-	n.Values = n.Values[:len(n.Values)-1]
-
-	// After removing the key from this node, return true when the node still
-	// has the minimum number of keys; and return false otherwise.
-	return len(n.Runts) >= minSize
-}
-
-func (n *leafNode[K, V]) isInternal() bool { return false }
-
-func (n *leafNode[K, V]) lock() { /* l.mutex.Lock() */ }
-
-// maybeSplit splits the node, giving half of its values to its new sibling,
-// when the node is too full to accept any more values. When it does return a
-// new right sibling, that node is locked.
-//
-// NOTE: This loop assumes the tree's order is a multiple of 2, which must be
-// guarded for at tree instantiation time.
-func (n *leafNode[K, V]) maybeSplit(order int) (node[K, V], node[K, V]) {
-	if len(n.Runts) < order {
-		return n, nil
-	}
-
-	newNodeRunts := order >> 1
-	sibling := &leafNode[K, V]{
-		Runts:  make([]K, newNodeRunts, order),
-		Values: make([]V, newNodeRunts, order),
-		Next:   n.Next,
-	}
-
-	// NOTE: Newly created sibling should be locked before attached to the
-	// tree in order to prevent a data race where another goroutine finds this
-	// new node.
-	sibling.lock()
-
-	// Right half of this node moves to sibling.
-	for j := 0; j < newNodeRunts; j++ {
-		sibling.Runts[j] = n.Runts[newNodeRunts+j]
-		sibling.Values[j] = n.Values[newNodeRunts+j]
-	}
-
-	// Clear the Runts and pointers from the original node.
-	n.Runts = n.Runts[:newNodeRunts]
-	n.Values = n.Values[:newNodeRunts]
-	n.Next = sibling
-
-	return n, sibling
-}
-
-func (n *leafNode[K, V]) smallest() K {
-	if len(n.Runts) == 0 {
-		panic("leaf node has no Children")
-	}
-	return n.Runts[0]
-}
-
-func (n *leafNode[K, V]) rlock()   { /* l.mutex.RLock() */ }
-func (n *leafNode[K, V]) runlock() { /* l.mutex.RUnlock() */ }
-func (n *leafNode[K, V]) unlock()  { /* l.mutex.Unlock() */ }
-func (n *leafNode[K, V]) runts() []K { return n.Runts } // DEBUG
 
 // GenericTree is a B+Tree of elements using key whose type satisfy the
 // cmp.Ordered constraint.
@@ -541,38 +93,36 @@ func NewGenericTree[K cmp.Ordered, V any](order int) (*GenericTree[K, V], error)
 			Runts:  make([]K, 0, order),
 			Values: make([]V, 0, order),
 		},
+		minSize: order >> 1, // each node should store be at least half full
 		order:   order,
-
-		// ???
-		minSize: order>>1,	   // each node should store be at least half full
-		// ???
-
 	}, nil
 }
 
+func (t *GenericTree[K, V]) lock()    { t.rootMutex.Lock() }
+func (t *GenericTree[K, V]) rlock()   { t.rootMutex.RLock() }
+func (t *GenericTree[K, V]) runlock() { t.rootMutex.RUnlock() }
+func (t *GenericTree[K, V]) unlock()  { t.rootMutex.Unlock() }
+
 // Delete removes the key-value pair from the tree.
 func (t *GenericTree[K, V]) Delete(key K) {
-	getKeys := func(tree *GenericTree[K, V]) []K {
-		var keys []K
-		s := tree.NewScannerAll()
-		for s.Scan() {
-			k, _ := s.Pair()
-			keys = append(keys, k)
-		}
-		return keys
+	// Because delete operation may result in removal of the root node, need
+	// to acquire exclusive lock to root field before begin, and release it
+	// upon method completion.
+	t.lock()
+	defer t.unlock()
+
+	if false { // DEBUG
+		fmt.Fprintf(os.Stderr, "GenericTree.Delete(%v) BEFORE deleteKey keys: %v\n", key, t.getKeys())
 	}
-
-	t.rootMutex.Lock()
-	defer t.rootMutex.Unlock()
-
-	if false { fmt.Fprintf(os.Stderr, "GenericTree.Delete(%v) BEFORE deleteKey keys: %v\n", key, getKeys(t)) ; }
 
 	// NOTE: Before invoking count method, we know we can return without
 	// combining nodes when deleteKey returns true. If deleteKey returns
 	// false, then root node no longer has the minimum number of items.
 	enough := t.root.deleteKey(t.minSize, key)
 
-	if false { fmt.Fprintf(os.Stderr, "GenericTree.Delete(%v) AFTER deleteKey enough=%t keys: %v\n", key, enough, getKeys(t)) ; }
+	if false { // DEBUG
+		fmt.Fprintf(os.Stderr, "GenericTree.Delete(%v) AFTER deleteKey enough=%t keys: %v\n", key, enough, t.getKeys())
+	}
 
 	if enough {
 		return // root node is large enough
@@ -583,6 +133,8 @@ func (t *GenericTree[K, V]) Delete(key K) {
 		if tv.count() == 1 {
 			// When the root points to an internal node that has a single
 			// child, update the root to point to that child.
+			//
+			// NOTE: This is why mutex needs to be held throughout lifetime.
 			t.root = tv.Children[0]
 		} else {
 			// When the root points to an internal node that has multiple
@@ -597,8 +149,20 @@ func (t *GenericTree[K, V]) Delete(key K) {
 	}
 }
 
+// getKeys is method used while debugging to return slice of keys present in
+// tree.
+func (tree *GenericTree[K, V]) getKeys() []K {
+	var keys []K
+	s := tree.NewScannerAll()
+	for s.Scan() {
+		k, _ := s.Pair()
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // Insert inserts the key-value pair into the tree, replacing the existing
-// value with the new value if the key is already in the tree.
+// value with the new value when the key is already in the tree.
 func (t *GenericTree[K, V]) Insert(key K, value V) {
 	// NOTE: This has the Same logic as Update, and rather than duplicate that
 	// logic, merely invoke Update method with a callback that ignores its
@@ -617,48 +181,145 @@ func (t *GenericTree[K, V]) Insert(key K, value V) {
 //
 // NOTE: count must be between 2 and the tree order, inclusive: [2, order].
 func (t *GenericTree[K, V]) Rebalance(count int) error {
+	const debug = false
+
+	if false {
+		// Enforce strict compliance with B+Tree properties.
+		if count < t.minSize {
+			return fmt.Errorf("cannot rebalance with count less than half the tree order: %d < %d", count, t.minSize)
+		}
+	}
 	if count < 2 {
 		return fmt.Errorf("cannot rebalance with count less than 2: %d", count)
 	}
 	if count > t.order {
-		return fmt.Errorf("cannot rebalance with count higher than tree order: %d > %d", count, t.order)
+		return fmt.Errorf("cannot rebalance with count higher than tree tree order: %d > %d", count, t.order)
 	}
 
 	var bottomNodes []node[K, V]
 
-	leaf := &leafNode[K, V]{
-		Runts:  make([]K, 0, t.order),
-		Values: make([]V, 0, t.order),
+	targetLeaf := &leafNode[K, V]{
+		Runts:  make([]K, t.order),
+		Values: make([]V, t.order),
 	}
 
-	t.rootMutex.Lock()
-	defer t.rootMutex.Unlock()
+	// Because this replaces the root node, must acquire and hold an exclusive
+	// lock to the tree.
+	t.lock()
+	defer t.unlock()
 
-	scanner := t.NewScannerAll()
-	for scanner.Scan() {
-		if len(leaf.Runts) == count {
-			nextLeaf := &leafNode[K, V]{
-				Runts:  make([]K, 0, t.order),
-				Values: make([]V, 0, t.order),
-			}
-			leaf.Next = nextLeaf
-			// if false { fmt.Fprintf(os.Stderr, "FINISHED LEAF: %#v\n", leaf) ; }
-			bottomNodes = append(bottomNodes, leaf)
-			leaf = nextLeaf
+	// Even though this is holding an exclusive lock to the tree, that only
+	// prevents other mutators from starting. There is a chance that other
+	// goroutines are lazily traversing the tree in a way that does not
+	// require an exclusive lock on the entire tree. Therefore, when visiting
+	// each node, must acquire read lock for that node, and release it only
+	// after acquiring read lock for the next node to visit.
+	n := t.root
+	n.rlock()
+
+	// Find the left most leaf node from which pairs will be copied.
+	sourceLeaf := t.findAndLockFirstLeaf(n)
+
+	var sourceCopyOffset int
+	var targetCopyOffset int
+
+	// Create new linked-list of leaf nodes by copying from source to target
+	// nodes.
+	for sourceLeaf != nil {
+		if debug {
+			fmt.Fprintf(os.Stderr, "TOP OF LOOP\n")
+			fmt.Fprintf(os.Stderr, "source node remaining: %v\n", sourceLeaf.Runts[sourceCopyOffset:])
+			fmt.Fprintf(os.Stderr, "target node so far:    %v\n", targetLeaf.Runts[:targetCopyOffset])
 		}
-		runt, value := scanner.Pair()
-		leaf.Runts = append(leaf.Runts, runt)
-		leaf.Values = append(leaf.Values, value)
+
+		space := count - targetCopyOffset // space is how much more slots available in target leaf
+
+		if space == 0 {
+			// Shorten the length of the slices to the actual number of
+			// elements copied from source leaves.
+			targetLeaf.Runts = targetLeaf.Runts[:targetCopyOffset]
+			targetLeaf.Values = targetLeaf.Values[:targetCopyOffset]
+			targetCopyOffset = 0
+
+			if debug {
+				fmt.Fprintf(os.Stderr, "FINISHED TARGET LEAF: %v\n", targetLeaf.Runts)
+			}
+
+			// Create a new target leaf node.
+			targetLeafNext := &leafNode[K, V]{
+				Runts:  make([]K, t.order),
+				Values: make([]V, t.order),
+			}
+			targetLeaf.Next = targetLeafNext
+
+			bottomNodes = append(bottomNodes, targetLeaf)
+			targetLeaf = targetLeafNext
+			space = count // new target leaf can accommodate count items
+		}
+
+		if debug {
+			fmt.Fprintf(os.Stderr, "target space remaining: %d\n", space)
+		}
+
+		runtsCopied := copy(targetLeaf.Runts[targetCopyOffset:count], sourceLeaf.Runts[sourceCopyOffset:])
+		valuesCopied := copy(targetLeaf.Values[targetCopyOffset:count], sourceLeaf.Values[sourceCopyOffset:])
+
+		sourceCopyOffset += runtsCopied
+		targetCopyOffset += runtsCopied
+
+		if runtsCopied != valuesCopied {
+			panic(fmt.Errorf("BUG: copied different number of runts and values: %d != %d", runtsCopied, valuesCopied))
+		}
+
+		if debug {
+			fmt.Fprintf(os.Stderr, "copy(targetleaf.Runts[%d:%d], sourceLeaf.Runts[%d:]) -> %d items copied\n", targetCopyOffset, count, sourceCopyOffset, runtsCopied)
+
+			fmt.Fprintf(os.Stderr, "target after: len=%d cap=%d %v\n", len(targetLeaf.Runts), cap(targetLeaf.Runts), targetLeaf.Runts[:targetCopyOffset])
+		}
+
+		// POST: either target is full, or source is empty
+		if targetCopyOffset > count {
+			panic(fmt.Errorf("BUG: copied too many runts to target leaf: %d", targetCopyOffset))
+		}
+
+		if sourceCopyOffset > len(sourceLeaf.Runts) {
+			panic(fmt.Errorf("BUG: source copy offset > len source runts: %d > %d", sourceCopyOffset, len(sourceLeaf.Runts)))
+		}
+
+		if sourceCopyOffset == len(sourceLeaf.Runts) {
+			if debug {
+				fmt.Fprintf(os.Stderr, "source copy offset == len source runts: %d == %d (need new source node)\n", sourceCopyOffset, len(sourceLeaf.Runts))
+			}
+
+			// Advance to next leaf node, locking it first, then unlocking the
+			// current node before advancement.
+			sourceLeafNext := sourceLeaf.Next
+			if sourceLeafNext != nil {
+				if debug {
+					fmt.Fprintf(os.Stderr, "found another source leaf node\n")
+				}
+				sourceCopyOffset = 0
+				sourceLeafNext.rlock()
+			} else {
+				if debug {
+					fmt.Fprintf(os.Stderr, "did not find another source leaf node\n")
+				}
+			}
+			// panic("DELTA")
+			sourceLeaf.runlock()
+			sourceLeaf = sourceLeafNext
+		} else if debug {
+			fmt.Fprintf(os.Stderr, "source copy offset < len source runts: %d < %d (need new target node)\n", sourceCopyOffset, len(sourceLeaf.Runts))
+		}
 	}
 
-	err := scanner.Close()
-	if err != nil {
-		return err
-	}
-
-	if len(leaf.Runts) > 0 {
-		// if false { fmt.Fprintf(os.Stderr, "FINISHED LEAF: %#v\n", leaf) ; }
-		bottomNodes = append(bottomNodes, leaf)
+	if targetCopyOffset > 0 {
+		targetLeaf.Runts = targetLeaf.Runts[:targetCopyOffset]
+		targetLeaf.Values = targetLeaf.Values[:targetCopyOffset]
+		if debug {
+			fmt.Fprintf(os.Stderr, "FINISHED LEAF: %v\n", targetLeaf.Runts)
+		}
+		bottomNodes = append(bottomNodes, targetLeaf)
 	}
 
 	var topNodes []node[K, V]
@@ -671,15 +332,17 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 	// Continue building new layers on top of bottom nodes until bottom nodes
 	// has only a single element.
 	for len(bottomNodes) > 1 {
-		// for _, n := range bottomNodes {
-		// 	if false { fmt.Fprintf(os.Stderr, "BOTTOM NODE: %v\n", n) ; }
-		// }
+		if debug {
+			for _, n := range bottomNodes {
+				fmt.Fprintf(os.Stderr, "BOTTOM NODE: %v\n", n)
+			}
+		}
 		for _, bottomNode := range bottomNodes {
 			if len(internal.Runts) == count {
-				if false {
-				fmt.Fprintf(os.Stderr, "FINISHED INTERNAL A: %v\n", internal)
-				for _, c := range internal.Children {
-					fmt.Fprintf(os.Stderr, "\tCHILD: %v\n", c)
+				if debug {
+					fmt.Fprintf(os.Stderr, "FINISHED INTERNAL A: %v\n", internal)
+					for _, c := range internal.Children {
+						fmt.Fprintf(os.Stderr, "\tCHILD: %v\n", c)
 					}
 				}
 				topNodes = append(topNodes, internal)
@@ -692,11 +355,11 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 			internal.Children = append(internal.Children, bottomNode)
 		}
 		if len(internal.Runts) > 0 {
-			if false {
-			fmt.Fprintf(os.Stderr, "FINISHED INTERNAL B: %v\n", internal)
-			for _, c := range internal.Children {
-				fmt.Fprintf(os.Stderr, "\tCHILD: %v\n", c)
-			}
+			if debug {
+				fmt.Fprintf(os.Stderr, "FINISHED INTERNAL B: %v\n", internal)
+				for _, c := range internal.Children {
+					fmt.Fprintf(os.Stderr, "\tCHILD: %v\n", c)
+				}
 			}
 			topNodes = append(topNodes, internal)
 			internal = &internalNode[K, V]{
@@ -704,10 +367,10 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 				Children: make([]node[K, V], 0, t.order),
 			}
 		}
-		if false {
-		for _, n := range topNodes {
-			fmt.Fprintf(os.Stderr, "TOP NODE: %v\n", n)
-		}
+		if debug {
+			for _, n := range topNodes {
+				fmt.Fprintf(os.Stderr, "TOP NODE: %v\n", n)
+			}
 		}
 		bottomNodes = topNodes
 		topNodes = topNodes[:0]
@@ -728,8 +391,8 @@ func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 	var value V
 	var ok bool
 
-	t.rootMutex.RLock()
-	defer t.rootMutex.RUnlock()
+	t.rlock()
+	defer t.runlock()
 
 	n := t.root
 	n.lock()
@@ -766,9 +429,13 @@ func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
 	var keyZeroValue K
 	var valueZeroValue V
 
-	t.rootMutex.Lock()
-	defer t.rootMutex.Unlock()
+	// Because updating the tree may change the tree's pointer to the root
+	// node, first acquire an exclusive lock to the tree.
+	t.lock()
 
+	// Because there might be another goroutine that is visiting internal and
+	// leaf nodes, we need to acquire exclusive lock on each node we visit
+	// because we might need to update that node.
 	n := t.root
 	n.lock()
 
@@ -792,6 +459,7 @@ func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
 			right.unlock()
 		}
 	}
+	defer t.unlock()
 
 	for n.isInternal() {
 		internal := n.(*internalNode[K, V])
@@ -882,18 +550,52 @@ func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
 // modification of the locked node. The leaf node is only unlocked after
 // closing the Cursor.
 func (t *GenericTree[K, V]) NewScanner(key K) *GenericCursor[K, V] {
-	n := t.root
-	n.lock()
+	t.rlock()   // Before can load root field must acquire read lock
+	n := t.root // Load pointer to root of tree
+	t.runlock() // Release read lock on tree
+
+	n.rlock() // Acquire read lock to root node.
 
 	for {
 		switch tv := n.(type) {
 		case *internalNode[K, V]:
+			// Next node to visit is the child node
 			child := tv.Children[searchLessThanOrEqualTo(key, tv.Runts)]
-			child.lock()
-			tv.unlock()
+			child.rlock() // Acquire read lock for the child node
+			tv.runlock()  // Release read lock for this node
 			n = child
 		case *leafNode[K, V]:
+			tv.rlock()
+			// NOTE: lock was acquired either above when at this leaf's
+			// parent, or if n was a leaf, before this loop.
+			//
+			// NOTE: The read lock for the leaf node will be released when
+			// scanner is closed.
 			return newGenericCursor(tv, searchGreaterThanOrEqualTo(key, tv.Runts))
+		default:
+			panic(fmt.Errorf("GOT: %#v; WANT: node", n))
+		}
+	}
+}
+
+// findAndLockFirstLeaf walks the tree to the first leaf node, acquires a read
+// lock, then returns it.
+//
+// NOTE: Must have either read or exclusive lock for n.
+func (t *GenericTree[K, V]) findAndLockFirstLeaf(n node[K, V]) *leafNode[K, V] {
+	for {
+		switch tv := n.(type) {
+		case *internalNode[K, V]:
+			// panic("HERE")
+			child := tv.Children[0] // Next node to visit is the child node
+			child.rlock()           // Acquire read lock for the child node
+			tv.runlock()            // Release read lock for this node
+			n = child
+		case *leafNode[K, V]:
+			// panic("THERE")
+			// NOTE: lock was acquired either above when at this leaf's
+			// parent, or if n was a leaf, before this method was invoked.
+			return tv
 		default:
 			panic(fmt.Errorf("GOT: %#v; WANT: node", n))
 		}
@@ -910,22 +612,17 @@ func (t *GenericTree[K, V]) NewScanner(key K) *GenericCursor[K, V] {
 // modification of the locked node. The leaf node is only unlocked after
 // closing the Cursor.
 func (t *GenericTree[K, V]) NewScannerAll() *GenericCursor[K, V] {
-	n := t.root
-	n.lock()
+	t.rlock()   // Before can load root field must acquire read lock
+	n := t.root // Load pointer to root of tree
+	t.runlock() // Release read lock on tree
 
-	for {
-		switch tv := n.(type) {
-		case *internalNode[K, V]:
-			child := tv.Children[0] // go to the left most child
-			child.lock()
-			tv.unlock()
-			n = child
-		case *leafNode[K, V]:
-			return newGenericCursor(tv, 0) // start at left most value
-		default:
-			panic(fmt.Errorf("GOT: %#v; WANT: node", n))
-		}
-	}
+	n.rlock() // Acquire read lock to node.
+
+	leaf := t.findAndLockFirstLeaf(n)
+
+	// NOTE: The read lock for the leaf node will be released when scanner is
+	// closed.
+	return newGenericCursor(leaf, 0) // start at left most value
 }
 
 // GenericCursor is used to enumerate key-value pairs from the tree in
@@ -952,7 +649,7 @@ func (c *GenericCursor[K, V]) Close() error {
 	if c.leaf == nil {
 		return errors.New("cannot Close a closed Scanner")
 	}
-	c.leaf.unlock()
+	c.leaf.runlock()
 	c.leaf = nil
 	return nil
 }
@@ -970,15 +667,18 @@ func (c *GenericCursor[K, V]) Pair() (K, V) {
 // returns false. This method must be invoked at least once before invoking
 // the Pair method.
 func (c *GenericCursor[K, V]) Scan() bool {
-	if c.index++; c.index == len(c.leaf.Runts) {
+	c.index++
+
+	if c.index == len(c.leaf.Runts) {
 		n := c.leaf.Next
 		if n == nil {
 			return false
 		}
-		n.lock()
-		c.leaf.unlock()
+		n.rlock()
+		c.leaf.runlock()
 		c.leaf = n
 		c.index = 0
 	}
+
 	return true
 }
