@@ -110,13 +110,15 @@ func (n *internalNode[K, V]) count() int { return len(n.Runts) }
 // node has at least minSize elements after the deletion, and returning false
 // when the node has fewer elements than minSize.
 func (n *internalNode[K, V]) deleteKey(minSize int, key K) bool {
+	const debug = true
+
 	n.lock()
 	defer n.unlock()
 
 	// Determine index of the child node where key would be stored.
 	index := searchLessThanOrEqualTo(key, n.Runts)
 
-	if false {
+	if debug {
 		fmt.Fprintf(os.Stderr, "internalNode.deleteKey(%v): BEFORE index: %d; keys: %v\n", key, index, n.Runts)
 	}
 

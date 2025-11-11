@@ -1858,7 +1858,7 @@ func TestGenericInternalNodeMergeWithRight(t *testing.T) {
 }
 
 func TestGenericInternalNodeDeleteKey(t *testing.T) {
-	t.Skip("DEBUG: dead-lock")
+	// t.Skip("DEBUG: dead-lock")
 
 	t.Run("not too small", func(t *testing.T) {
 		t.Skip("DEBUG: dead-lock")

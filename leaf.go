@@ -116,14 +116,17 @@ func (left *leafNode[K, V]) adoptFromRight(sibling node[K, V]) {
 func (n *leafNode[K, V]) count() int { return len(n.Runts) }
 
 func (n *leafNode[K, V]) deleteKey(minSize int, key K) bool {
+	const debug = true
+
 	n.lock()
 	defer n.unlock()
 
-	if false {
-		fmt.Fprintf(os.Stderr, "BEFORE leafNode.deleteKey(%v): keys: %v\n", key, n.Runts)
+	index := searchGreaterThanOrEqualTo(key, n.Runts)
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "BEFORE leafNode.deleteKey(%v): index: %d; keys: %v\n", key, index, n.Runts)
 	}
 
-	index := searchGreaterThanOrEqualTo(key, n.Runts)
 	if index == len(n.Runts) || key != n.Runts[index] {
 		// When key is not present in the leaf node, there is nothing to be
 		// done. Return true because this has not shrunk this leaf node, and

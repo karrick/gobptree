@@ -106,8 +106,8 @@ func (t *GenericTree[K, V]) unlock()  { t.rootMutex.Unlock() }
 // Delete removes the key-value pair from the tree.
 func (t *GenericTree[K, V]) Delete(key K) {
 	// Because delete operation may result in removal of the root node, need
-	// to acquire exclusive lock to root field before begin, and release it
-	// upon method completion.
+	// to acquire exclusive lock for the entire tree before begin, then
+	// release the lock upon method completion.
 	t.lock()
 	defer t.unlock()
 
@@ -264,12 +264,12 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 		runtsCopied := copy(targetLeaf.Runts[targetCopyOffset:count], sourceLeaf.Runts[sourceCopyOffset:])
 		valuesCopied := copy(targetLeaf.Values[targetCopyOffset:count], sourceLeaf.Values[sourceCopyOffset:])
 
-		sourceCopyOffset += runtsCopied
-		targetCopyOffset += runtsCopied
-
 		if runtsCopied != valuesCopied {
 			panic(fmt.Errorf("BUG: copied different number of runts and values: %d != %d", runtsCopied, valuesCopied))
 		}
+
+		sourceCopyOffset += runtsCopied
+		targetCopyOffset += runtsCopied
 
 		if debug {
 			fmt.Fprintf(os.Stderr, "copy(targetleaf.Runts[%d:%d], sourceLeaf.Runts[%d:]) -> %d items copied\n", targetCopyOffset, count, sourceCopyOffset, runtsCopied)
@@ -305,7 +305,6 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 					fmt.Fprintf(os.Stderr, "did not find another source leaf node\n")
 				}
 			}
-			// panic("DELTA")
 			sourceLeaf.runlock()
 			sourceLeaf = sourceLeafNext
 		} else if debug {
