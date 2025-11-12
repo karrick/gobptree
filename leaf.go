@@ -25,15 +25,36 @@ type leafNode[K cmp.Ordered, V any] struct {
 	mutex sync.RWMutex
 }
 
-func (n *leafNode[K, V]) lock()    { n.mutex.Lock() }
-func (n *leafNode[K, V]) rlock()   { n.mutex.RLock() }
-func (n *leafNode[K, V]) runlock() { n.mutex.RUnlock() }
-func (n *leafNode[K, V]) unlock()  { n.mutex.Unlock() }
+const leafNodeLocking = true
+
+func (n *leafNode[K, V]) lock() {
+	if leafNodeLocking {
+		n.mutex.Lock()
+	}
+}
+
+func (n *leafNode[K, V]) rlock() {
+	if leafNodeLocking {
+		n.mutex.RLock()
+	}
+}
+
+func (n *leafNode[K, V]) runlock() {
+	if leafNodeLocking {
+		n.mutex.RUnlock()
+	}
+}
+
+func (n *leafNode[K, V]) unlock() {
+	if leafNodeLocking {
+		n.mutex.Unlock()
+	}
+}
 
 // runts is a debugging method.
 func (n *leafNode[K, V]) runts() []K {
-	n.rlock()
-	defer n.runlock()
+	// n.rlock()
+	// defer n.runlock()
 	return n.Runts
 }
 
@@ -41,13 +62,13 @@ func (n *leafNode[K, V]) runts() []K {
 // node, and sets the left's Next field to the value of the sibling's Next
 // field.
 //
-// NOTE: sibling must be locked before calling.
+// NOTE: The sibling must be locked before calling.
 func (left *leafNode[K, V]) absorbFromRight(sibling node[K, V]) {
 	right := sibling.(*leafNode[K, V])
 
 	if left.Next != right {
-		// Superfluous check
-		panic("cannot merge leaf with sibling other than next sibling")
+		// Only way to get here is upon introduction of a bug in the library.
+		panic("BUG: cannot merge leaf with sibling other than next sibling")
 	}
 
 	left.Runts = append(left.Runts, right.Runts...)
@@ -64,7 +85,9 @@ func (left *leafNode[K, V]) absorbFromRight(sibling node[K, V]) {
 // adoptFromLeft moves one element from the sibling node to the right node,
 // after making room for it at the beginning of the right node's slices.
 //
-// NOTE: sibling must be locked before calling.
+// NOTE: The sibling must be locked before calling.
+//
+// NOTE: This method panics when sibling is empty.
 func (right *leafNode[K, V]) adoptFromLeft(sibling node[K, V]) {
 	// TODO: Consider direct copy so do not need the zero values.
 	var keyZeroValue K
@@ -95,6 +118,10 @@ func (right *leafNode[K, V]) adoptFromLeft(sibling node[K, V]) {
 // adoptFromRight moves one element from the sibling node to the left node.
 //
 // NOTE: sibling must be locked before calling.
+//
+// NOTE: This method panics when sibling is empty.
+//
+// NOTE: After return the right smallest has changed.
 func (left *leafNode[K, V]) adoptFromRight(sibling node[K, V]) {
 	right := sibling.(*leafNode[K, V])
 
@@ -115,23 +142,32 @@ func (left *leafNode[K, V]) adoptFromRight(sibling node[K, V]) {
 
 func (n *leafNode[K, V]) count() int { return len(n.Runts) }
 
-func (n *leafNode[K, V]) deleteKey(minSize int, key K) bool {
-	const debug = true
+// deleteKey removes key and its value from the node, returning the number of
+// elements after deletion, and the smallest value in the node.
+//
+// NOTE: Must hold exclusive lock to node before invocation.
+func (n *leafNode[K, V]) deleteKey(minSize int, key K) (int, K) {
+	const debug = false
 
-	n.lock()
-	defer n.unlock()
+	var smallestRunt K
 
+	// Determine index where the key would be stored.
 	index := searchGreaterThanOrEqualTo(key, n.Runts)
 
 	if debug {
-		fmt.Fprintf(os.Stderr, "BEFORE leafNode.deleteKey(%v): index: %d; keys: %v\n", key, index, n.Runts)
+		fmt.Fprintf(os.Stderr, "leafNode.deleteKey(%v): BEFORE index: %d; minSize: %d; len: %d; keys: %v\n", key, index, minSize, len(n.Runts), n.Runts)
 	}
 
-	if index == len(n.Runts) || key != n.Runts[index] {
+	lenRunts := len(n.Runts)
+
+	if index == lenRunts || key != n.Runts[index] {
 		// When key is not present in the leaf node, there is nothing to be
 		// done. Return true because this has not shrunk this leaf node, and
 		// presumably it is still at least its minimum size.
-		return true
+		if lenRunts > 0 {
+			smallestRunt = n.Runts[0]
+		}
+		return lenRunts, smallestRunt
 	}
 
 	// When the key is present in the leaf node, remove it.
@@ -144,9 +180,18 @@ func (n *leafNode[K, V]) deleteKey(minSize int, key K) bool {
 	n.Runts = n.Runts[:len(n.Runts)-1]
 	n.Values = n.Values[:len(n.Values)-1]
 
-	// After removing the key from this node, return true when the node still
-	// has the minimum number of keys; and return false otherwise.
-	return len(n.Runts) >= minSize
+	// After removing key and its value from this node, return true when the
+	// node still has the minimum number of keys; and return false otherwise.
+	lenRunts--
+	if lenRunts > 0 {
+		smallestRunt = n.Runts[0]
+	}
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "leafNode.deleteKey(%v): AFTER index: %d; minSize: %d; len: %d; keys: %v\n", key, index, minSize, len(n.Runts), n.Runts)
+	}
+
+	return lenRunts, smallestRunt
 }
 
 func (n *leafNode[K, V]) isInternal() bool { return false }

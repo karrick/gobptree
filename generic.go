@@ -14,8 +14,7 @@ import (
 )
 
 // searchGreaterThanOrEqualTo returns the index of the first value from values
-// that is greater than or equal to key.  search for index of runt that is
-// greater than or equal to key.
+// that is greater than or equal to key.
 func searchGreaterThanOrEqualTo[K cmp.Ordered](key K, keys []K) int {
 	var lo int
 
@@ -62,7 +61,7 @@ type node[K cmp.Ordered, V any] interface {
 	adoptFromLeft(node[K, V])
 	adoptFromRight(node[K, V])
 	count() int
-	deleteKey(int, K) bool
+	deleteKey(int, K) (int, K)
 	isInternal() bool
 	lock()
 	maybeSplit(order int) (node[K, V], node[K, V])
@@ -98,29 +97,59 @@ func NewGenericTree[K cmp.Ordered, V any](order int) (*GenericTree[K, V], error)
 	}, nil
 }
 
-func (t *GenericTree[K, V]) lock()    { t.rootMutex.Lock() }
-func (t *GenericTree[K, V]) rlock()   { t.rootMutex.RLock() }
-func (t *GenericTree[K, V]) runlock() { t.rootMutex.RUnlock() }
-func (t *GenericTree[K, V]) unlock()  { t.rootMutex.Unlock() }
+const genericTreeLocking = true
+
+func (t *GenericTree[K, V]) lock() {
+	if genericTreeLocking {
+		t.rootMutex.Lock()
+	}
+}
+
+func (t *GenericTree[K, V]) rlock() {
+	if genericTreeLocking {
+		t.rootMutex.RLock()
+	}
+}
+
+func (t *GenericTree[K, V]) runlock() {
+	if genericTreeLocking {
+		t.rootMutex.RUnlock()
+	}
+}
+
+func (t *GenericTree[K, V]) unlock() {
+	if genericTreeLocking {
+		t.rootMutex.Unlock()
+	}
+}
 
 // Delete removes the key-value pair from the tree.
 func (t *GenericTree[K, V]) Delete(key K) {
-	// Because delete operation may result in removal of the root node, need
+	const debug = false
+
+	// Because a delete operation may result in removal of the root node, need
 	// to acquire exclusive lock for the entire tree before begin, then
 	// release the lock upon method completion.
 	t.lock()
 	defer t.unlock()
 
-	if false { // DEBUG
+	if debug { // DEBUG
 		fmt.Fprintf(os.Stderr, "GenericTree.Delete(%v) BEFORE deleteKey keys: %v\n", key, t.getKeys())
 	}
+
+	// Before visiting each node, must acquire its lock. Because a delete
+	// might modify all nodes from the root of the tree to the leaf node, need
+	// to obtain an exclusive lock to each node.
+	t.root.lock()
+	defer t.root.unlock()
 
 	// NOTE: Before invoking count method, we know we can return without
 	// combining nodes when deleteKey returns true. If deleteKey returns
 	// false, then root node no longer has the minimum number of items.
-	enough := t.root.deleteKey(t.minSize, key)
+	rootSize, _ := t.root.deleteKey(t.minSize, key)
+	enough := rootSize >= t.minSize
 
-	if false { // DEBUG
+	if debug { // DEBUG
 		fmt.Fprintf(os.Stderr, "GenericTree.Delete(%v) AFTER deleteKey enough=%t keys: %v\n", key, enough, t.getKeys())
 	}
 
@@ -144,8 +173,8 @@ func (t *GenericTree[K, V]) Delete(key K) {
 		// When root points to a single leaf node, there is nothing to be
 		// done. The tree is already the smallest it could be.
 	default:
-		// There is no way get here unless bug in library.
-		panic(fmt.Errorf("BUG: GOT: %#v; WANT: internalNode | leafNode", t.root))
+		// Cannot get here unless bug introduced in library.
+		panic(fmt.Errorf("BUG: GOT: %#v; WANT: node[K,V]", t.root))
 	}
 }
 
@@ -394,13 +423,13 @@ func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 	defer t.runlock()
 
 	n := t.root
-	n.lock()
+	n.rlock()
 
 	for n.isInternal() {
 		parent := n.(*internalNode[K, V])
 		child := parent.Children[searchLessThanOrEqualTo(key, parent.Runts)]
-		child.lock()
-		parent.unlock()
+		child.rlock()
+		parent.runlock()
 		n = child
 	}
 
@@ -414,7 +443,7 @@ func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 		}
 	}
 
-	leaf.unlock()
+	leaf.runlock()
 	return value, ok
 }
 
@@ -572,7 +601,8 @@ func (t *GenericTree[K, V]) NewScanner(key K) *GenericCursor[K, V] {
 			// scanner is closed.
 			return newGenericCursor(tv, searchGreaterThanOrEqualTo(key, tv.Runts))
 		default:
-			panic(fmt.Errorf("GOT: %#v; WANT: node", n))
+			// Cannot get here unless bug introduced in library.
+			panic(fmt.Errorf("BUG: GOT: %#v; WANT: node[K,V]", n))
 		}
 	}
 }
@@ -596,7 +626,8 @@ func (t *GenericTree[K, V]) findAndLockFirstLeaf(n node[K, V]) *leafNode[K, V] {
 			// parent, or if n was a leaf, before this method was invoked.
 			return tv
 		default:
-			panic(fmt.Errorf("GOT: %#v; WANT: node", n))
+			// Cannot get here unless bug introduced in library.
+			panic(fmt.Errorf("BUG: GOT: %#v; WANT: node[K,V]", n))
 		}
 	}
 }
