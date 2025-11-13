@@ -3,7 +3,9 @@ package gobptree
 import (
 	"cmp"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -203,6 +205,7 @@ func (n *leafNode[K, V]) isInternal() bool { return false }
 // NOTE: This loop assumes the tree's order is a multiple of 2, which must be
 // guarded for at tree instantiation time.
 func (n *leafNode[K, V]) maybeSplit(order int) (node[K, V], node[K, V]) {
+	panic("DEPRECATED")
 	if len(n.Runts) < order {
 		return n, nil
 	}
@@ -233,9 +236,204 @@ func (n *leafNode[K, V]) maybeSplit(order int) (node[K, V], node[K, V]) {
 	return n, sibling
 }
 
+func (n *leafNode[K, V]) render(iow io.Writer, prefix string) {
+	n.rlock()
+
+	fmt.Fprintf(iow, "%s- LEAF:\n", prefix)
+	// fmt.Fprintf(iow, "%s- LEAF: %v\n", prefix, n.Runts)
+
+	childPrefix := prefix + "    "
+	lenItems := len(n.Runts)
+
+	for i := 0; i < lenItems; i++ {
+		fmt.Fprintf(iow, "%s- %v = %v\n", childPrefix, n.Runts[i], n.Values[i])
+	}
+
+	// fmt.Fprintf(iow, "]\n")
+
+	n.runlock()
+}
+
 func (n *leafNode[K, V]) smallest() K {
 	if len(n.Runts) == 0 {
 		panic("leaf node has no Children")
 	}
 	return n.Runts[0]
+}
+
+// split will return a new internal node after moving half of its values to
+// the new node.
+func (n *leafNode[K, V]) split(order int) node[K, V] {
+	const debug = false
+
+	newNodeRunts := order >> 1
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "leafNode.split(%d): keys: %v\n", order, n.Runts)
+	}
+
+	sibling := &leafNode[K, V]{
+		Runts:  make([]K, newNodeRunts, order),
+		Values: make([]V, newNodeRunts, order),
+		Next:   n.Next,
+	}
+
+	// Right half of this node moves to sibling.
+	copy(sibling.Runts, n.Runts[newNodeRunts:])
+	copy(sibling.Values, n.Values[newNodeRunts:])
+
+	// Clear the Runts and pointers from the original node.
+	n.Runts = n.Runts[:newNodeRunts]
+	n.Values = n.Values[:newNodeRunts]
+	n.Next = sibling
+
+	return sibling
+}
+
+func (n *leafNode[K, V]) String() string {
+	var builder strings.Builder
+	builder.WriteString("LEAF: [")
+	for i, runt := range n.Runts {
+		if i > 0 {
+			builder.WriteString(fmt.Sprintf(", %v => %v", runt, n.Values[i]))
+		} else {
+			builder.WriteString(fmt.Sprintf("%v => %v", runt, n.Values[i]))
+		}
+	}
+	builder.WriteByte(']')
+	return builder.String()
+}
+
+func (n *leafNode[K, V]) updateKey(key K, order int, knownPresent bool, callback func(V, bool) V) node[K, V] {
+	const debug = false
+
+	var keyZeroValue K
+	var valueZeroValue V
+
+	n.lock()
+	defer n.unlock()
+
+	index := searchGreaterThanOrEqualTo(key, n.Runts)
+
+	if knownPresent || (index < len(n.Runts) && key == n.Runts[index]) {
+		// Key already present in node.
+		// DONE panic("TEST KEY ALREADY IN LEAF NODE")
+		n.Values[index] = callback(n.Values[index], true)
+		return nil
+	}
+
+	// POST: Key not present in node.
+
+	if len(n.Runts) < order {
+		// Can fit new key without a split.
+
+		// DONE panic("TEST NO SPLIT REQUIRED")
+
+		if debug {
+			fmt.Fprintf(os.Stderr, "leafNode.updateKey(%v, %d, %t, callback): no split required; %s\n", key, order, knownPresent, n)
+		}
+
+		// Append zero values to make room in arrays
+		n.Runts = append(n.Runts, keyZeroValue)
+		n.Values = append(n.Values, valueZeroValue)
+
+		// Shift elements to the right to make room for new data
+		copy(n.Runts[index+1:], n.Runts[index:])
+		copy(n.Values[index+1:], n.Values[index:])
+
+		// Store the new key and value
+		n.Runts[index] = key
+		n.Values[index] = callback(valueZeroValue, false)
+		return nil
+	}
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "leafNode.updateKey(%v, %d, %t, callback): BEFORE SPLIT node: %s\n", key, order, knownPresent, n)
+	}
+
+	// This node will need to be split in order to fit another element.
+	newSibling := n.split(order).(*leafNode[K, V])
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "leafNode.updateKey(%v, %d, %t, callback): AFTER SPLIT node: %s\n", key, order, knownPresent, n)
+		fmt.Fprintf(os.Stderr, "leafNode.updateKey(%v, %d, %t, callback): AFTER SPLIT sibling: %s\n", key, order, knownPresent, newSibling)
+	}
+
+	// POST: Both this node and sibling are evenly divided, and key and its
+	// value need to be added into one or the other of them.
+	if key < newSibling.Runts[0] {
+		// New key will go to this node.
+		index = searchGreaterThanOrEqualTo(key, n.Runts)
+
+		if key > n.Runts[index] {
+			if debug {
+				fmt.Fprintf(os.Stderr, "leafNode.updateKey(%v, %d, %t, callback): (key inserted after values on left side) index: %d; %s\n", key, order, knownPresent, index, n)
+			}
+			// DONE panic("TEST KEY INSERTED AFTER VALUES ON LEFT SIDE")
+			n.Runts = append(n.Runts, key)
+			n.Values = append(n.Values, callback(valueZeroValue, false))
+			return newSibling
+		}
+
+		if debug {
+			fmt.Fprintf(os.Stderr, "leafNode.updateKey(%v, %d, %t, callback): (key inserted either before or between values on left side) index: %d; %s\n", key, order, knownPresent, index, n)
+		}
+
+		// Append zero values to make room in arrays
+		n.Runts = append(n.Runts, keyZeroValue)
+		n.Values = append(n.Values, valueZeroValue)
+
+		// Shift elements to the right to make room for new data
+		copy(n.Runts[index+1:], n.Runts[index:])
+		copy(n.Values[index+1:], n.Values[index:])
+
+		// Store the new key and value
+		n.Runts[index] = key
+
+		newValue := callback(valueZeroValue, false)
+		n.Values[index] = newValue
+
+		if debug {
+			fmt.Fprintf(os.Stderr, "leafNode.updateKey(%v, %d, %t, callback): (AFTER add to left side) value: %v; node: %s\n", key, order, knownPresent, newValue, n)
+			fmt.Fprintf(os.Stderr, "leafNode.updateKey(%v, %d, %t, callback): (AFTER add to left side) value: %v; sibling: %s\n", key, order, knownPresent, newValue, newSibling)
+		}
+
+		return newSibling
+	}
+
+	// DONE panic("TEST KEY INSERTED AFTER VALUES ON RIGHT SIDE")
+
+	// New key will go to newly created sibling.
+	index = searchGreaterThanOrEqualTo(key, newSibling.Runts)
+
+	newValue := callback(valueZeroValue, false)
+
+	if key > newSibling.Runts[index] {
+		if debug {
+			fmt.Fprintf(os.Stderr, "leafNode.updateKey(%v, %d, %t, callback): (key inserted after values on left side) index: %d; value: %v; %s\n", key, order, knownPresent, index, newValue, newSibling)
+		}
+		newSibling.Runts = append(newSibling.Runts, key)
+		newSibling.Values = append(newSibling.Values, newValue)
+		return newSibling
+	}
+
+	// Append zero values to make room in arrays
+	newSibling.Runts = append(newSibling.Runts, keyZeroValue)
+	newSibling.Values = append(newSibling.Values, valueZeroValue)
+
+	// Shift elements to the right to make room for new data
+	copy(newSibling.Runts[index+1:], newSibling.Runts[index:])
+	copy(newSibling.Values[index+1:], newSibling.Values[index:])
+
+	// Store the new key and value
+	newSibling.Runts[index] = key
+
+	newSibling.Values[index] = newValue
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "leafNode.updateKey(%v, %d, %t, callback): (AFTER add to right side) value: %v; node: %s\n", key, order, knownPresent, newValue, n)
+		fmt.Fprintf(os.Stderr, "leafNode.updateKey(%v, %d, %t, callback): (AFTER add to right side) value: %v; sibling: %s\n", key, order, knownPresent, newValue, newSibling)
+	}
+
+	return newSibling
 }

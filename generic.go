@@ -9,6 +9,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 )
@@ -65,11 +66,14 @@ type node[K cmp.Ordered, V any] interface {
 	isInternal() bool
 	lock()
 	maybeSplit(order int) (node[K, V], node[K, V])
+	render(io.Writer, string) // TESTING
 	rlock()
 	runlock()
 	runts() []K // DEBUG
 	smallest() K
+	split(order int) node[K, V]
 	unlock()
+	updateKey(K, int, bool, func(V, bool) V) node[K, V]
 }
 
 // GenericTree is a B+Tree of elements using key whose type satisfy the
@@ -414,6 +418,12 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 	return nil
 }
 
+func (t *GenericTree[K, V]) render(iow io.Writer, prefix string) {
+	t.rlock()
+	t.root.render(iow, prefix)
+	t.runlock()
+}
+
 // Search returns the value associated with key from the tree.
 func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 	var value V
@@ -453,7 +463,7 @@ func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 // invoked with nil and false to signify the key was not found. After this
 // method returns, the key will exist in the tree with the new value returned
 // by the callback function.
-func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
+func (t *GenericTree[K, V]) Update0(key K, callback func(V, bool) V) {
 	var keyZeroValue K
 	var valueZeroValue V
 
@@ -565,6 +575,44 @@ func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
 	leaf.Runts[index] = key
 	leaf.Values[index] = callback(valueZeroValue, false)
 	leaf.unlock()
+}
+
+func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
+	const debug = true
+
+	// Because updating the tree may change the tree's pointer to the root
+	// node, first acquire an exclusive lock to the tree.
+	t.lock()
+	defer t.unlock()
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "GenericTree.Update(%v, callback): order: %d\n", key, t.order)
+	}
+
+	newSibling := t.root.updateKey(key, t.order, false, callback)
+	if newSibling == nil {
+		fmt.Fprintf(os.Stderr, "GenericTree.Update(%v, callback): no root split\n", key)
+		return
+	}
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "GenericTree.Update(%v, callback): root split\n", key)
+	}
+
+	// POST: root has a new sibling; must create new internal node to hold
+	// them both.
+	newRoot := &internalNode[K, V]{
+		Runts:    make([]K, 2, t.order),
+		Children: make([]node[K, V], 2, t.order),
+	}
+
+	newRoot.Runts[0] = t.root.smallest()
+	newRoot.Children[0] = t.root
+
+	newRoot.Runts[1] = newSibling.smallest()
+	newRoot.Children[1] = newSibling
+
+	t.root = newRoot
 }
 
 // NewScanner returns a cursor that iteratively returns key-value pairs from
