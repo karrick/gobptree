@@ -198,44 +198,6 @@ func (n *leafNode[K, V]) deleteKey(minSize int, key K) (int, K) {
 
 func (n *leafNode[K, V]) isInternal() bool { return false }
 
-// maybeSplit splits the node, giving half of its values to its new sibling,
-// when the node is too full to accept any more values. When it does return a
-// new right sibling, that node is locked.
-//
-// NOTE: This loop assumes the tree's order is a multiple of 2, which must be
-// guarded for at tree instantiation time.
-func (n *leafNode[K, V]) maybeSplit(order int) (node[K, V], node[K, V]) {
-	panic("DEPRECATED")
-	if len(n.Runts) < order {
-		return n, nil
-	}
-
-	newNodeRunts := order >> 1
-	sibling := &leafNode[K, V]{
-		Runts:  make([]K, newNodeRunts, order),
-		Values: make([]V, newNodeRunts, order),
-		Next:   n.Next,
-	}
-
-	// NOTE: Newly created sibling should be locked before attached to the
-	// tree in order to prevent a data race where another goroutine finds this
-	// new node.
-	sibling.lock()
-
-	// Right half of this node moves to sibling.
-	for j := 0; j < newNodeRunts; j++ {
-		sibling.Runts[j] = n.Runts[newNodeRunts+j]
-		sibling.Values[j] = n.Values[newNodeRunts+j]
-	}
-
-	// Clear the Runts and pointers from the original node.
-	n.Runts = n.Runts[:newNodeRunts]
-	n.Values = n.Values[:newNodeRunts]
-	n.Next = sibling
-
-	return n, sibling
-}
-
 func (n *leafNode[K, V]) render(iow io.Writer, prefix string) {
 	n.rlock()
 

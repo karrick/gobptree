@@ -65,7 +65,6 @@ type node[K cmp.Ordered, V any] interface {
 	deleteKey(int, K) (int, K)
 	isInternal() bool
 	lock()
-	maybeSplit(order int) (node[K, V], node[K, V])
 	render(io.Writer, string) // TESTING
 	rlock()
 	runlock()
@@ -127,7 +126,8 @@ func (t *GenericTree[K, V]) unlock() {
 	}
 }
 
-// Delete removes the key-value pair from the tree.
+// Delete removes the key-value pair from the tree, or returns without an
+// error if the key was not a member of the tree.
 func (t *GenericTree[K, V]) Delete(key K) {
 	const debug = false
 
@@ -194,7 +194,7 @@ func (tree *GenericTree[K, V]) getKeys() []K {
 	return keys
 }
 
-// Insert inserts the key-value pair into the tree, replacing the existing
+// Insert inserts the key-value pair into the tree, replacing any existing
 // value with the new value when the key is already in the tree.
 func (t *GenericTree[K, V]) Insert(key K, value V) {
 	// NOTE: This has the Same logic as Update, and rather than duplicate that
@@ -424,37 +424,49 @@ func (t *GenericTree[K, V]) render(iow io.Writer, prefix string) {
 	t.runlock()
 }
 
-// Search returns the value associated with key from the tree.
+// Search returns the value associated with key from the tree. The second
+// return value will be true when the key is in the tree, or will be false
+// when the key is not a member of the tree.
 func (t *GenericTree[K, V]) Search(key K) (V, bool) {
-	var value V
-	var ok bool
+	t.rlock()   // Before can load root field must acquire read lock
+	n := t.root // Load pointer to root of tree
+	t.runlock() // Release read lock on tree
 
-	t.rlock()
-	defer t.runlock()
-
-	n := t.root
+	// As walk tree and visit each node, need to acquire its read-lock.
 	n.rlock()
 
-	for n.isInternal() {
-		parent := n.(*internalNode[K, V])
-		child := parent.Children[searchLessThanOrEqualTo(key, parent.Runts)]
-		child.rlock()
-		parent.runlock()
-		n = child
-	}
+	for {
+		switch tv := n.(type) {
 
-	leaf := n.(*leafNode[K, V])
+		case *internalNode[K, V]:
+			child := tv.Children[searchLessThanOrEqualTo(key, tv.Runts)]
+			child.rlock() // Acquire the read-lock for the child node
+			tv.runlock()  // Release the read-lock for this node
+			n = child     // Visit child node next
 
-	if len(leaf.Runts) > 0 {
-		i := searchGreaterThanOrEqualTo(key, leaf.Runts)
-		if key == leaf.Runts[i] {
-			value = leaf.Values[i]
-			ok = true
+		case *leafNode[K, V]:
+			var value V
+			var ok bool
+
+			if len(tv.Runts) > 0 {
+				i := searchGreaterThanOrEqualTo(key, tv.Runts)
+				ok = key == tv.Runts[i]
+				if ok {
+					value = tv.Values[i]
+				}
+			}
+
+			tv.runlock() // Release the read-lock for this node
+
+			return value, ok
+
+		default:
+			// Cannot get here unless bug introduced in library.
+			panic(fmt.Errorf("BUG: GOT: %#v; WANT: node[K,V]", t.root))
+
 		}
 	}
-
-	leaf.runlock()
-	return value, ok
+	// NOT-REACHED
 }
 
 // Update searches for key and invokes callback with key's associated value,
@@ -463,120 +475,6 @@ func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 // invoked with nil and false to signify the key was not found. After this
 // method returns, the key will exist in the tree with the new value returned
 // by the callback function.
-func (t *GenericTree[K, V]) Update0(key K, callback func(V, bool) V) {
-	var keyZeroValue K
-	var valueZeroValue V
-
-	// Because updating the tree may change the tree's pointer to the root
-	// node, first acquire an exclusive lock to the tree.
-	t.lock()
-
-	// Because there might be another goroutine that is visiting internal and
-	// leaf nodes, we need to acquire exclusive lock on each node we visit
-	// because we might need to update that node.
-	n := t.root
-	n.lock()
-
-	// Split the root node when required. Regardless of whether the root is an
-	// internal or a leaf node, the root shall become an internal node.
-	if left, right := n.maybeSplit(t.order); right != nil {
-		leftSmallest := left.smallest()
-		if key < leftSmallest {
-			leftSmallest = key
-		}
-		rightSmallest := right.smallest()
-		t.root = &internalNode[K, V]{
-			Runts:    []K{leftSmallest, rightSmallest},
-			Children: []node[K, V]{left, right},
-		}
-		// Decide whether we need to descend left or right.
-		if key >= rightSmallest {
-			n.unlock() // unlock the left, since same node
-			n = right
-		} else {
-			right.unlock()
-		}
-	}
-	defer t.unlock()
-
-	for n.isInternal() {
-		internal := n.(*internalNode[K, V])
-		index := searchLessThanOrEqualTo(key, internal.Runts)
-
-		child := internal.Children[index]
-		child.lock()
-
-		if index == 0 {
-			if smallest := child.smallest(); key < smallest {
-				// preemptively update smallest value
-				internal.Runts[0] = key
-			}
-		}
-
-		// Split the child node when required.
-		if _, right := child.maybeSplit(t.order); right != nil {
-			// Insert sibling to the right of current node.
-			internal.Runts = append(internal.Runts, keyZeroValue)
-			internal.Children = append(internal.Children, nil)
-			// Shift runts and children to the right by one element.
-			copy(internal.Runts[index+2:], internal.Runts[index+1:])
-			copy(internal.Children[index+2:], internal.Children[index+1:])
-			// Insert new right element into internal node.
-			internal.Children[index+1] = right
-			rightSmallest := right.smallest()
-			internal.Runts[index+1] = rightSmallest
-			// Decide whether we need to descend left or right.
-			if key < rightSmallest {
-				// will not add this pair to the right node
-				right.unlock()
-			} else {
-				// will add this pair to the right node
-				child.unlock() // release lock on child
-				child = right  // descend to newly created sibling
-			}
-		}
-
-		// POST: tail end recursion to intended child
-		internal.unlock() // release lock on this node before go to child locked above
-		n = child
-	}
-
-	leaf := n.(*leafNode[K, V])
-
-	// When the new value will become the first element in a leaf, which is
-	// only possible for an empty tree, or when new key comes after final leaf
-	// runt, a simple append will suffice.
-	if len(leaf.Runts) == 0 || key > leaf.Runts[len(leaf.Runts)-1] {
-		value := callback(valueZeroValue, false)
-		leaf.Runts = append(leaf.Runts, key)
-		leaf.Values = append(leaf.Values, value)
-		leaf.unlock()
-		return
-	}
-
-	index := searchGreaterThanOrEqualTo(key, leaf.Runts)
-
-	if key == leaf.Runts[index] {
-		// When the key matches the runt, merely need to update the value.
-		leaf.Values[index] = callback(leaf.Values[index], true)
-		leaf.unlock()
-		return
-	}
-
-	// Make room for and insert the new key-value pair into leaf.
-
-	// Append zero values to make room in arrays
-	leaf.Runts = append(leaf.Runts, keyZeroValue)
-	leaf.Values = append(leaf.Values, valueZeroValue)
-	// Shift elements to the right to make room for new data
-	copy(leaf.Runts[index+1:], leaf.Runts[index:])
-	copy(leaf.Values[index+1:], leaf.Values[index:])
-	// Store the new data
-	leaf.Runts[index] = key
-	leaf.Values[index] = callback(valueZeroValue, false)
-	leaf.unlock()
-}
-
 func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
 	const debug = true
 
@@ -630,29 +528,31 @@ func (t *GenericTree[K, V]) NewScanner(key K) *GenericCursor[K, V] {
 	n := t.root // Load pointer to root of tree
 	t.runlock() // Release read lock on tree
 
-	n.rlock() // Acquire read lock to root node.
+	// As walk tree and visit each node, need to acquire its read-lock.
+	n.rlock()
 
 	for {
 		switch tv := n.(type) {
+
 		case *internalNode[K, V]:
 			// Next node to visit is the child node
 			child := tv.Children[searchLessThanOrEqualTo(key, tv.Runts)]
-			child.rlock() // Acquire read lock for the child node
-			tv.runlock()  // Release read lock for this node
-			n = child
+			child.rlock() // Acquire the read-lock for the child node
+			tv.runlock()  // Release the read-lock for this node
+			n = child     // Visit child node next
+
 		case *leafNode[K, V]:
-			tv.rlock()
-			// NOTE: lock was acquired either above when at this leaf's
-			// parent, or if n was a leaf, before this loop.
-			//
-			// NOTE: The read lock for the leaf node will be released when
+			// NOTE: The read-lock for the leaf node will be released when
 			// scanner is closed.
 			return newGenericCursor(tv, searchGreaterThanOrEqualTo(key, tv.Runts))
+
 		default:
 			// Cannot get here unless bug introduced in library.
 			panic(fmt.Errorf("BUG: GOT: %#v; WANT: node[K,V]", n))
+
 		}
 	}
+	// NOT-REACHED
 }
 
 // findAndLockFirstLeaf walks the tree to the first leaf node, acquires a read
@@ -663,21 +563,23 @@ func (t *GenericTree[K, V]) findAndLockFirstLeaf(n node[K, V]) *leafNode[K, V] {
 	for {
 		switch tv := n.(type) {
 		case *internalNode[K, V]:
-			// panic("HERE")
 			child := tv.Children[0] // Next node to visit is the child node
-			child.rlock()           // Acquire read lock for the child node
-			tv.runlock()            // Release read lock for this node
-			n = child
+			child.rlock()           // Acquire the read-lock for the child node
+			tv.runlock()            // Release the read-lock for this node
+			n = child               // Visit child node next
+
 		case *leafNode[K, V]:
-			// panic("THERE")
-			// NOTE: lock was acquired either above when at this leaf's
-			// parent, or if n was a leaf, before this method was invoked.
+			// NOTE: The read-lock for the leaf node will be released when
+			// scanner is closed.
 			return tv
+
 		default:
 			// Cannot get here unless bug introduced in library.
 			panic(fmt.Errorf("BUG: GOT: %#v; WANT: node[K,V]", n))
+
 		}
 	}
+	// NOT-REACHED
 }
 
 // NewScannerAll returns a cursor that iteratively returns all key-value pairs
@@ -694,7 +596,8 @@ func (t *GenericTree[K, V]) NewScannerAll() *GenericCursor[K, V] {
 	n := t.root // Load pointer to root of tree
 	t.runlock() // Release read lock on tree
 
-	n.rlock() // Acquire read lock to node.
+	// As walk tree and visit each node, need to acquire its read-lock.
+	n.rlock()
 
 	leaf := t.findAndLockFirstLeaf(n)
 
