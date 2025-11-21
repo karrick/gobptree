@@ -7,7 +7,6 @@ package gobptree
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -446,10 +445,19 @@ func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
 // returned. To enumerate all values in a tree, use NewScannerAll, which is
 // faster than invoking this method with the minimum key value.
 //
-// NOTE: This function exits still holding the lock on one of the tree's leaf
-// nodes, which may block other operations on the tree that require
+// NOTE: This function exits still holding a read-lock on one of the tree's
+// leaf nodes, which will block other operations on the tree that require
 // modification of the locked node. The leaf node is only unlocked after
-// closing the Cursor.
+// closing the Cursor or after Scan returns false.
+//
+//	var l int
+//	cursor := s.tree.NewScanner(13)
+//	for cursor.Scan() {
+//		l++
+//	}
+//	if err := cursor.Close(); err != nil {
+//		return err
+//	}
 func (t *GenericTree[K, V]) NewScanner(key K) *GenericCursor[K, V] {
 	t.rlock()   // Before can load root field must acquire read lock
 	n := t.root // Load pointer to root of tree
@@ -514,10 +522,19 @@ func (t *GenericTree[K, V]) findAndLockFirstLeaf(n node[K, V]) *leafNode[K, V] {
 // value, use NewScanner. This method is faster than invoking NewScanner with
 // the minimum key value.
 //
-// NOTE: This function exits still holding the lock on one of the tree's leaf
-// nodes, which may block other operations on the tree that require
+// NOTE: This function exits still holding a read-lock on one of the tree's
+// leaf nodes, which will block other operations on the tree that require
 // modification of the locked node. The leaf node is only unlocked after
-// closing the Cursor.
+// closing the Cursor or after Scan returns false.
+//
+//	var l int
+//	cursor := s.tree.NewScannerAll()
+//	for cursor.Scan() {
+//		l++
+//	}
+//	if err := cursor.Close(); err != nil {
+//		return err
+//	}
 func (t *GenericTree[K, V]) NewScannerAll() *GenericCursor[K, V] {
 	t.rlock()   // Before can load root field must acquire read lock
 	n := t.root // Load pointer to root of tree
@@ -551,19 +568,26 @@ func newGenericCursor[K cmp.Ordered, V any](leaf *leafNode[K, V], index int) *Ge
 
 // Close releases the lock on the leaf node under the cursor. This method is
 // provided to signal no further intention of scanning the remainder key-value
-// pairs in the tree. It is necessary to invoke this method in order to
-// release the lock the cursor holds on one of the leaf nodes in the tree.
+// pairs in the tree, useful when caller does not intend to invoke Scan again,
+// but there are more elements to be returned.
+//
+// It is not necessary to invoke this method if the Scan method was invoked
+// and returned false. It is however safe to invoke this method multiple times
+// or after Scan returned false to signal no more items to be visited.
 func (c *GenericCursor[K, V]) Close() error {
-	if c.leaf == nil {
-		return errors.New("cannot Close a closed Scanner")
+	if c.leaf != nil {
+		c.leaf.runlock()
+		c.leaf = nil
 	}
-	c.leaf.runlock()
-	c.leaf = nil
 	return nil
 }
 
-// Pair returns the key-value pair referenced by the cursor. This method will
-// panic when invoked before invoking the Scan method at least once.
+// Pair returns the key-value pair referenced by the cursor.
+//
+// This method will panic when invoked before the Scan method has been invoked
+// at least once, and can potentially cause a panic or race condition if
+// invoked after the Scan method returned false, or after the cursor's Close
+// method was invoked.
 func (c *GenericCursor[K, V]) Pair() (K, V) {
 	return c.leaf.Runts[c.index], c.leaf.Values[c.index]
 }
@@ -579,11 +603,11 @@ func (c *GenericCursor[K, V]) Scan() bool {
 
 	if c.index == len(c.leaf.Runts) {
 		n := c.leaf.Next
+		c.leaf.runlock()
 		if n == nil {
 			return false
 		}
 		n.rlock()
-		c.leaf.runlock()
 		c.leaf = n
 		c.index = 0
 	}

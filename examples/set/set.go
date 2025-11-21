@@ -20,12 +20,12 @@ func NewSyncSetInt64() *SyncSetInt64 {
 
 func (s *SyncSetInt64) GetItems() []int64 {
 	var keys []int64
-	scanner := s.tree.NewScannerAll()
-	for scanner.Scan() {
-		key, _ := scanner.Pair()
+	cursor := s.tree.NewScannerAll()
+	for cursor.Scan() {
+		key, _ := cursor.Pair()
 		keys = append(keys, key)
 	}
-	if err := scanner.Close(); err != nil {
+	if err := cursor.Close(); err != nil {
 		panic(err)
 	}
 	return keys
@@ -33,11 +33,11 @@ func (s *SyncSetInt64) GetItems() []int64 {
 
 func (s *SyncSetInt64) Len() int {
 	var l int
-	scanner := s.tree.NewScannerAll()
-	for scanner.Scan() {
+	cursor := s.tree.NewScannerAll()
+	for cursor.Scan() {
 		l++
 	}
-	if err := scanner.Close(); err != nil {
+	if err := cursor.Close(); err != nil {
 		panic(err)
 	}
 	return l
