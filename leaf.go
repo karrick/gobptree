@@ -267,10 +267,12 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 
 	var err error
 	var keyZeroValue K
-	var valueZeroValue V
+	var newValue, valueZeroValue V
 
 	n.lock()
 	defer n.unlock()
+
+	// TODO: combine handling of knownPresent with index, ok.
 
 	// OPTIMIZATION: The knownPresent argument is set to true by an ancestor
 	// node when it discovers the key is an exact member of its Runts
@@ -283,8 +285,12 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 	if knownPresent {
 		// DONE panic("TEST LEAF NODE: KEY KNOWN PRESENT")
 		debug("KNOWN_PRESENT is true: node=%v\n", n)
-		n.Values[0], err = callback(n.Values[0], true)
-		return nil, err
+		newValue, err = callback(n.Values[0], true)
+		if err != nil {
+			return nil, err
+		}
+		n.Values[0] = newValue
+		return nil, nil
 	}
 
 	// When the key is not already known to be present because it was found in
@@ -297,12 +303,16 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 	if ok {
 		// DONE panic("TEST LEAF NODE; KEY FOUND IN RUNTS")
 		debug("ALREADY PRESENT: index=%d; node=%v\n", index, n)
-		n.Values[index], err = callback(n.Values[index], true)
-		return nil, err
+		newValue, err = callback(n.Values[index], true)
+		if err != nil {
+			return nil, err
+		}
+		n.Values[index] = newValue
+		return nil, nil
 	}
 
 	// POST: Key is not present in node.
-	newValue, err := callback(valueZeroValue, false)
+	newValue, err = callback(valueZeroValue, false)
 	if err != nil {
 		return nil, err
 	}
