@@ -1354,7 +1354,6 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 	})
 
 	t.Run("failing on tree insert", func(t *testing.T) {
-		t.Skip("TODO")
 		const order = 2
 
 		leafB := &leafNode[int, int]{
@@ -1370,30 +1369,39 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 
 		newSibling := internalA.updateKey(insertionIndex, 4, order, false, callbackExpects(t, 0, false))
 
+		// internalA.render(os.Stderr, "AFTER INSERT 4 internalA : ")
+		// newSibling.render(os.Stderr, "AFTER INSERT 4 newSibling: ")
+
+		charlie := &leafNode[int, int]{
+			Runts:  []int{3, 4},
+			Values: []int{3, -1},
+		}
+		bravo := &leafNode[int, int]{
+			Runts:  []int{2},
+			Values: []int{2},
+			Next:   charlie,
+		}
+		alfa := &leafNode[int, int]{
+			Runts:  []int{1},
+			Values: []int{1},
+			Next:   bravo,
+		}
+
 		t.Run("internalA", func(t *testing.T) {
-			ensureStructure(t, internalA,
+			ensureNodesMatch(t, internalA,
 				newInternal(
-					newInternal(
-						&leafNode[int, int]{
-							Runts:  []int{1},
-							Values: []int{1},
-						},
-						&leafNode[int, int]{
-							Runts:  []int{2},
-							Values: []int{2},
-						},
-					),
-					newInternal(
-						&leafNode[int, int]{
-							Runts:  []int{3, 4},
-							Values: []int{3, 4},
-						},
-					),
+					alfa,
 				),
 			)
 		})
+
 		t.Run("newSibling", func(t *testing.T) {
-			ensureSame(t, newSibling, nil)
+			ensureNodesMatch(t, newSibling,
+				newInternal(
+					bravo,
+					charlie,
+				),
+			)
 		})
 	})
 }

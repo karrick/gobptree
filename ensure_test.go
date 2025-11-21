@@ -34,12 +34,13 @@ func ensureInternalNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want *int
 		t.Helper()
 
 		if got == nil {
-			if want != nil {
-				t.Errorf("GOT: %#v; WANT: %#v", got, want)
+			if want == nil {
+				return
 			}
-			return
-		} else if want == nil {
-			t.Errorf("GOT: %#v; WANT: %#v", got, want)
+			t.Fatalf("GOT: %v; WANT: %v", got, want)
+		}
+		if want == nil {
+			t.Fatalf("GOT: %v; WANT: %v", got, want)
 		}
 
 		t.Run("Runts", func(t *testing.T) {
@@ -65,18 +66,19 @@ func ensureInternalNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want *int
 }
 
 func ensureLeafNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want *leafNode[K, V]) {
-	t.Helper()
+	// t.Helper()
 
 	t.Run("leaf", func(t *testing.T) {
-		t.Helper()
+		// t.Helper()
 
 		if got == nil {
-			if want != nil {
-				t.Errorf("GOT: %#v; WANT: %#v", got, want)
+			if want == nil {
+				return
 			}
-			return
-		} else if want == nil {
-			t.Errorf("GOT: %#v; WANT: %#v", got, want)
+			t.Fatalf("GOT: %v; WANT: %v", got, want)
+		}
+		if want == nil {
+			t.Fatalf("GOT: %v; WANT: %v", got, want)
 		}
 
 		t.Run("Runts", func(t *testing.T) {
@@ -97,24 +99,24 @@ func ensureLeafNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want *leafNod
 }
 
 func ensureNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want node[K, V]) {
-	t.Helper()
+	// t.Helper()
 
 	switch w := want.(type) {
 	case *internalNode[K, V]:
 		g, ok := got.(*internalNode[K, V])
 		if !ok {
-			t.Errorf("GOT: %#v; WANT: %#v", got, want)
+			t.Errorf("GOT: %T; WANT: %T", got, want)
 		}
 		ensureInternalNodesMatch(t, g, w)
 	case *leafNode[K, V]:
 		g, ok := got.(*leafNode[K, V])
 		if !ok {
-			t.Errorf("GOT: %#v; WANT: %#v", got, want)
+			t.Errorf("GOT: %T; WANT: %T", got, want)
 		}
 		ensureLeafNodesMatch(t, g, w)
 	default:
 		// Cannot get here unless error introduced in function argument types.
-		t.Errorf("BUG: GOT: %#v; WANT: node[K,V]", want)
+		t.Errorf("BUG: GOT: %T; WANT: node[K,V]", want)
 	}
 }
 
@@ -227,6 +229,6 @@ func stitchNextValues[K cmp.Ordered, V any](n node[K, V], nextLeaf *leafNode[K, 
 		return tv
 	default:
 		// Cannot get here unless error introduced in function argument types.
-		panic(fmt.Errorf("BUG: GOT: %#v; WANT: node[K,V]", n))
+		panic(fmt.Errorf("BUG: GOT: %v; WANT: node[K,V]", n))
 	}
 }
