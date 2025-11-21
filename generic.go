@@ -575,6 +575,7 @@ func (t *GenericTree[K, V]) NewScannerAll() *GenericCursor[K, V] {
 type GenericCursor[K cmp.Ordered, V any] struct {
 	leaf  *leafNode[K, V]
 	index int
+	lock  sync.RWMutex
 }
 
 func newGenericCursor[K cmp.Ordered, V any](leaf *leafNode[K, V], index int) *GenericCursor[K, V] {
@@ -595,10 +596,14 @@ func newGenericCursor[K cmp.Ordered, V any](leaf *leafNode[K, V], index int) *Ge
 // and returned false. It is however safe to invoke this method multiple times
 // or after Scan returned false to signal no more items to be visited.
 func (c *GenericCursor[K, V]) Close() error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	if c.leaf != nil {
 		c.leaf.runlock()
 		c.leaf = nil
 	}
+
 	return nil
 }
 
@@ -609,6 +614,9 @@ func (c *GenericCursor[K, V]) Close() error {
 // invoked after the Scan method returned false, or after the cursor's Close
 // method was invoked.
 func (c *GenericCursor[K, V]) Pair() (K, V) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
 	return c.leaf.Runts[c.index], c.leaf.Values[c.index]
 }
 
@@ -619,6 +627,9 @@ func (c *GenericCursor[K, V]) Pair() (K, V) {
 // returns false. This method must be invoked at least once before invoking
 // the Pair method.
 func (c *GenericCursor[K, V]) Scan() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	c.index++
 
 	if c.index == len(c.leaf.Runts) {
