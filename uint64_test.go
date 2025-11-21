@@ -92,10 +92,11 @@ func TestUint64TreeCursor(t *testing.T) {
 		var count int
 
 		d, _ := NewUint64Tree(4)
-		c := d.NewScanner(0)
+		c := d.NewScannerAll()
 		for c.Scan() {
 			count++
 		}
+		ensureError(t, c.Close())
 
 		if got, want := count, 0; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
@@ -110,11 +111,12 @@ func TestUint64TreeCursor(t *testing.T) {
 				d.Insert(uint64(i), uint64(i))
 			}
 
-			c := d.NewScanner(0)
+			c := d.NewScannerAll()
 			for c.Scan() {
 				_, v := c.Pair()
 				values = append(values, v.(uint64))
 			}
+			ensureError(t, c.Close())
 
 			expected := []uint64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 
@@ -179,11 +181,12 @@ func TestUint64TreeCursor(t *testing.T) {
 			d.Insert(uint64(i), uint64(i))
 		}
 
-		c := d.NewScanner(0)
+		c := d.NewScannerAll()
 		for c.Scan() {
 			_, v := c.Pair()
 			values = append(values, v.(uint64))
 		}
+		ensureError(t, c.Close())
 
 		expected := []uint64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 
@@ -298,10 +301,11 @@ func benchmarkUint64(b *testing.B, order int, values []int) {
 		var ignored int
 		for i := 0; i < b.N; i++ {
 			var count int
-			scanner := d.NewScanner(0)
+			scanner := d.NewScannerAll()
 			for scanner.Scan() {
 				count++
 			}
+			ensureError(b, scanner.Close())
 			ignored = count
 		}
 		_ = ignored

@@ -93,14 +93,17 @@ func TestStringTreeCursor(t *testing.T) {
 		var count int
 
 		d, _ := NewStringTree(4)
-		c := d.NewScanner("0")
+		c := d.NewScannerAll()
 		for c.Scan() {
 			count++
 		}
+		ensureError(t, c.Close())
 
 		if got, want := count, 0; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
+
+		ensureError(t, c.Close())
 	})
 	t.Run("single-leaf tree", func(t *testing.T) {
 		t.Run("scan for zero-value element", func(t *testing.T) {
@@ -124,6 +127,8 @@ func TestStringTreeCursor(t *testing.T) {
 					t.Errorf("GOT: %v; WANT: %v", got, want)
 				}
 			}
+
+			ensureError(t, c.Close())
 		})
 		t.Run("scan for missing element", func(t *testing.T) {
 			var values []string
@@ -148,6 +153,8 @@ func TestStringTreeCursor(t *testing.T) {
 					t.Errorf("GOT: %v; WANT: %v", got, want)
 				}
 			}
+
+			ensureError(t, c.Close())
 		})
 		t.Run("scan for existing element", func(t *testing.T) {
 			var values []string
@@ -170,6 +177,8 @@ func TestStringTreeCursor(t *testing.T) {
 					t.Errorf("GOT: %v; WANT: %v", got, want)
 				}
 			}
+
+			ensureError(t, c.Close())
 		})
 	})
 	t.Run("multi-leaf tree", func(t *testing.T) {
@@ -193,6 +202,8 @@ func TestStringTreeCursor(t *testing.T) {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
 		}
+
+		ensureError(t, c.Close())
 	})
 }
 

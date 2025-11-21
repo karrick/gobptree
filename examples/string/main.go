@@ -35,4 +35,7 @@ func main() {
 		k, _ := cursor.Pair()
 		fmt.Println(k)
 	}
+	if err := cursor.Close(); err != nil {
+		panic(err)
+	}
 }

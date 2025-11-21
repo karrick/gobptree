@@ -24,7 +24,7 @@ type internalNode[K cmp.Ordered, V any] struct {
 	mutex sync.RWMutex
 }
 
-const internalNodeLocking = true
+const internalNodeLocking = false
 
 func (n *internalNode[K, V]) lock() {
 	if internalNodeLocking {

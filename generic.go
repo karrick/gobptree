@@ -59,7 +59,7 @@ func NewGenericTree[K cmp.Ordered, V any](order int) (*GenericTree[K, V], error)
 	}, nil
 }
 
-const genericTreeLocking = true
+const genericTreeLocking = false
 
 func (t *GenericTree[K, V]) lock() {
 	if genericTreeLocking {
@@ -88,16 +88,15 @@ func (t *GenericTree[K, V]) unlock() {
 // Delete removes the key-value pair from the tree, or returns without an
 // error if the key was not a member of the tree.
 func (t *GenericTree[K, V]) Delete(key K) {
-	debug := newDebug(false, "GenericTree.Delete(key=%v, order=%d)", key, t.order)
-	debug("BEFORE")
+	debug := newDebug(true, "GenericTree.Delete(key=%v, order=%d)", key, t.order)
+
+	debug("BEFORE deleteKey keys: %v\n", t.getKeys())
 
 	// Because a delete operation may result in removal of the root node, need
 	// to acquire exclusive lock for the entire tree before begin, then
 	// release the lock upon method completion.
 	t.lock()
 	defer t.unlock()
-
-	// debug("BEFORE deleteKey keys: %v\n", t.getKeys())
 
 	// Before visiting each node, must acquire its lock. Because a delete
 	// might modify all nodes from the root of the tree to the leaf node, need
@@ -146,6 +145,9 @@ func (tree *GenericTree[K, V]) getKeys() []K {
 	for s.Scan() {
 		k, _ := s.Pair()
 		keys = append(keys, k)
+	}
+	if err := s.Close(); err != nil {
+		panic(err)
 	}
 	return keys
 }

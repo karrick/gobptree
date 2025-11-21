@@ -92,10 +92,11 @@ func TestInt32TreeCursor(t *testing.T) {
 		var count int
 
 		d, _ := NewInt32Tree(4)
-		c := d.NewScanner(0)
+		c := d.NewScannerAll()
 		for c.Scan() {
 			count++
 		}
+		ensureError(t, c.Close())
 
 		if got, want := count, 0; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
@@ -110,11 +111,12 @@ func TestInt32TreeCursor(t *testing.T) {
 				d.Insert(int32(i), int32(i))
 			}
 
-			c := d.NewScanner(0)
+			c := d.NewScannerAll()
 			for c.Scan() {
 				_, v := c.Pair()
 				values = append(values, v.(int32))
 			}
+			ensureError(t, c.Close())
 
 			expected := []int32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 
@@ -139,6 +141,7 @@ func TestInt32TreeCursor(t *testing.T) {
 				_, v := c.Pair()
 				values = append(values, v.(int32))
 			}
+			ensureError(t, c.Close())
 
 			expected := []int32{14, 2, 3, 4, 5, 6, 7, 8, 9}
 
@@ -161,6 +164,7 @@ func TestInt32TreeCursor(t *testing.T) {
 				_, v := c.Pair()
 				values = append(values, v.(int32))
 			}
+			ensureError(t, c.Close())
 
 			expected := []int32{13, 14, 2, 3, 4, 5, 6, 7, 8, 9}
 
@@ -179,11 +183,12 @@ func TestInt32TreeCursor(t *testing.T) {
 			d.Insert(int32(i), int32(i))
 		}
 
-		c := d.NewScanner(0)
+		c := d.NewScannerAll()
 		for c.Scan() {
 			_, v := c.Pair()
 			values = append(values, v.(int32))
 		}
+		ensureError(t, c.Close())
 
 		expected := []int32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 
@@ -298,10 +303,11 @@ func benchmarkInt32(b *testing.B, order int, values []int) {
 		var ignored int
 		for i := 0; i < b.N; i++ {
 			var count int
-			scanner := d.NewScanner(0)
+			scanner := d.NewScannerAll()
 			for scanner.Scan() {
 				count++
 			}
+			ensureError(b, scanner.Close())
 			ignored = count
 		}
 		_ = ignored

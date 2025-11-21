@@ -20,7 +20,7 @@ func TestGenericTreeNew(t *testing.T) {
 
 func TestGenericTreeDelete(t *testing.T) {
 	t.Run("order 2", func(t *testing.T) {
-		t.Skip("FIXME: order of 2 panics")
+		// t.Skip("FIXME: order of 2 panics")
 
 		tree, err := NewGenericTree[int, int](2)
 		ensureError(t, err)
@@ -49,7 +49,8 @@ func TestGenericTreeDelete(t *testing.T) {
 		// a leaf node.
 
 		t.Run("delete from non empty tree", func(t *testing.T) {
-			for _, v := range values[:len(values)-1] {
+			lv := len(values)
+			for _, v := range values[:lv-1] {
 				tree.Delete(v)
 				tree.render(os.Stderr, fmt.Sprintf("AFTER Remove(%v) ", v))
 			}
@@ -1281,6 +1282,8 @@ func TestGenericTreeScanner(t *testing.T) {
 			if got, want := count, 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
+
+			ensureError(t, cursor.Close())
 		})
 		t.Run("NewScannerAll", func(t *testing.T) {
 			var count int
@@ -1292,10 +1295,13 @@ func TestGenericTreeScanner(t *testing.T) {
 			for cursor.Scan() {
 				count++
 			}
+			ensureError(t, cursor.Close())
 
 			if got, want := count, 0; got != want {
 				t.Errorf("GOT: %v; WANT: %v", got, want)
 			}
+
+			ensureError(t, cursor.Close())
 		})
 	})
 	t.Run("single-leaf tree", func(t *testing.T) {
@@ -1318,6 +1324,8 @@ func TestGenericTreeScanner(t *testing.T) {
 			expected := []any{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 
 			ensureSame(t, values, expected)
+
+			ensureError(t, cursor.Close())
 		})
 		t.Run("scan for missing element", func(t *testing.T) {
 			var values []any
@@ -1340,6 +1348,8 @@ func TestGenericTreeScanner(t *testing.T) {
 			expected := []any{14}
 
 			ensureSame(t, values, expected)
+
+			ensureError(t, cursor.Close())
 		})
 		t.Run("scan for existing element", func(t *testing.T) {
 			var values []any
@@ -1360,6 +1370,8 @@ func TestGenericTreeScanner(t *testing.T) {
 			expected := []any{13, 14}
 
 			ensureSame(t, values, expected)
+
+			ensureError(t, cursor.Close())
 		})
 	})
 	t.Run("multi-leaf tree", func(t *testing.T) {
@@ -1381,5 +1393,7 @@ func TestGenericTreeScanner(t *testing.T) {
 		expected := []any{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 
 		ensureSame(t, values, expected)
+
+		ensureError(t, cursor.Close())
 	})
 }

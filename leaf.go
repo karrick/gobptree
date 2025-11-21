@@ -26,7 +26,7 @@ type leafNode[K cmp.Ordered, V any] struct {
 	mutex sync.RWMutex
 }
 
-const leafNodeLocking = true
+const leafNodeLocking = false
 
 func (n *leafNode[K, V]) lock() {
 	if leafNodeLocking {

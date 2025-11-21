@@ -41,11 +41,15 @@ func main() {
 
 	fmt.Printf("%s: Scanning through tree, collecting all keys in sorted order.\n", formatTime())
 	var sortedValues []uint64
-	c := t.NewScanner(0)
+	c := t.NewScannerAll()
 	for c.Scan() {
 		// Get the key-value pair for this datum, but only collect the key.
 		k, _ := c.Pair()
 		sortedValues = append(sortedValues, k)
+	}
+	if err := c.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("%s: Searching tree for each value from the sorted list.\n", formatTime())

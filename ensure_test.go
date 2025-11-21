@@ -162,8 +162,8 @@ func getTreeValues[K cmp.Ordered, V any](t *testing.T, tree *GenericTree[K, V]) 
 		_, value := scanner.Pair()
 		values = append(values, value)
 	}
-
 	ensureError(t, scanner.Close())
+
 	return values
 }
 

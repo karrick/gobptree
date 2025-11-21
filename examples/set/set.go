@@ -25,7 +25,9 @@ func (s *SyncSetInt64) GetItems() []int64 {
 		key, _ := scanner.Pair()
 		keys = append(keys, key)
 	}
-	scanner.Close()
+	if err := scanner.Close(); err != nil {
+		panic(err)
+	}
 	return keys
 }
 
@@ -35,7 +37,9 @@ func (s *SyncSetInt64) Len() int {
 	for scanner.Scan() {
 		l++
 	}
-	scanner.Close()
+	if err := scanner.Close(); err != nil {
+		panic(err)
+	}
 	return l
 }
 
