@@ -461,6 +461,9 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 				leftSibling.adoptFromRight(child)
 				_, err = child.updateKey(insertionIndex, key, order, false, callback)
 				if err != nil {
+					// Must restore previous structure when child would be too
+					// small.
+					child.adoptFromLeft(leftSibling)
 					return nil, err
 				}
 				n.Runts[index] = child.smallest()
@@ -482,6 +485,9 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 				rightSibling.adoptFromLeft(child)
 				_, err = child.updateKey(insertionIndex, key, order, false, callback)
 				if err != nil {
+					// Must restore previous structure when child would be too
+					// small.
+					child.adoptFromRight(rightSibling)
 					return nil, err
 				}
 				n.Runts[index] = child.smallest()

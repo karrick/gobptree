@@ -766,6 +766,9 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 	const order = 4
 
 	// TODO: add tests to handle when callback returns error.
+	//
+	// Include in the above logic to ensure tree does not change structure if
+	// adoption had to be reverted.
 
 	insertionIndex := insertionIndexSelect[int]()
 
