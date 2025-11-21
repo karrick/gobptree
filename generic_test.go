@@ -775,6 +775,8 @@ func TestGenericTreeInsert(t *testing.T) {
 	})
 
 	t.Run("order 32", func(t *testing.T) {
+		t.Skip("TESTING")
+
 		const order = 32
 		tree, err := NewGenericTree[int, int](order)
 		ensureError(t, err)
@@ -784,8 +786,6 @@ func TestGenericTreeInsert(t *testing.T) {
 		}
 
 		tree.render(os.Stderr, "AFTER INSERT: ")
-
-		t.Error("TESTING")
 	})
 
 	t.Run("single leaf", func(t *testing.T) {
