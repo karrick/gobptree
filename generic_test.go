@@ -209,7 +209,6 @@ func TestGenericTreeDelete(t *testing.T) {
 
 func TestGenericTreeInsert(t *testing.T) {
 	t.Run("order 2", func(t *testing.T) {
-		// t.Skip("FIXME")
 		tree, err := NewGenericTree[int, int](2)
 		ensureError(t, err)
 
@@ -252,28 +251,36 @@ func TestGenericTreeInsert(t *testing.T) {
 			)
 		})
 
-		const attemptAdoption = false
-
 		t.Run("insert 4", func(t *testing.T) {
 			tree.Insert(4, 4)
 
-			tree.render(os.Stderr, "AFTER 4: ")
-
-			if attemptAdoption {
-				ensureStructure(t, tree.root,
+			ensureStructure(t, tree.root,
+				newInternal(
 					newInternal(
 						&leafNode[int, int]{
-							Runts:  []int{1, 2},
-							Values: []int{1, 2},
+							Runts:  []int{1},
+							Values: []int{1},
+						},
+					),
+					newInternal(
+						&leafNode[int, int]{
+							Runts:  []int{2},
+							Values: []int{2},
 						},
 						&leafNode[int, int]{
 							Runts:  []int{3, 4},
 							Values: []int{3, 4},
 						},
 					),
-				)
-			} else {
-				ensureStructure(t, tree.root,
+				),
+			)
+		})
+
+		t.Run("insert 5", func(t *testing.T) {
+			tree.Insert(5, 5)
+
+			ensureStructure(t, tree.root,
+				newInternal(
 					newInternal(
 						newInternal(
 							&leafNode[int, int]{
@@ -281,58 +288,81 @@ func TestGenericTreeInsert(t *testing.T) {
 								Values: []int{1},
 							},
 						),
+					),
+					newInternal(
 						newInternal(
 							&leafNode[int, int]{
 								Runts:  []int{2},
 								Values: []int{2},
 							},
+						),
+						newInternal(
 							&leafNode[int, int]{
-								Runts:  []int{3, 4},
-								Values: []int{3, 4},
+								Runts:  []int{3},
+								Values: []int{3},
+							},
+							&leafNode[int, int]{
+								Runts:  []int{4, 5},
+								Values: []int{4, 5},
 							},
 						),
 					),
-				)
-			}
+				),
+			)
 		})
 
-		if attemptAdoption {
-			t.Skip("TODO")
-			t.Run("insert 5", func(t *testing.T) {
-				tree.Insert(5, 5)
+		t.Run("insert 6", func(t *testing.T) {
+			tree.Insert(6, 6)
 
-				tree.render(os.Stderr, "AFTER 5: ")
+			ensureStructure(t, tree.root,
+				newInternal(
+					newInternal(
+						newInternal(
+							newInternal(
+								&leafNode[int, int]{
+									Runts:  []int{1},
+									Values: []int{1},
+								},
+							),
+						),
+					),
+					newInternal(
+						newInternal(
+							newInternal(
+								&leafNode[int, int]{
+									Runts:  []int{2},
+									Values: []int{2},
+								},
+							),
+						),
+						newInternal(
+							newInternal(
+								&leafNode[int, int]{
+									Runts:  []int{3},
+									Values: []int{3},
+								},
+							),
+							newInternal(
+								&leafNode[int, int]{
+									Runts:  []int{4},
+									Values: []int{4},
+								},
+								&leafNode[int, int]{
+									Runts:  []int{5, 6},
+									Values: []int{5, 6},
+								},
+							),
+						),
+					),
+				),
+			)
+		})
 
-				// ensureStructure(t, tree.root,
-				// 	newInternal(
-				// 		newInternal(
-				// 			&leafNode[int, int]{
-				// 				Runts:  []int{1, 2},
-				// 				Values: []int{1, 2},
-				// 			},
-				// 		),
-				// 		newInternal(
-				// 			&leafNode[int, int]{
-				// 				Runts:  []int{3},
-				// 				Values: []int{3},
-				// 			},
-				// 			&leafNode[int, int]{
-				// 				Runts:  []int{4, 5},
-				// 				Values: []int{4, 5},
-				// 			},
-				// 		),
-				// 	),
-				// )
-				if t.Failed() {
-					tree.render(os.Stderr, "AFTER 5: ")
-				}
-			})
+		t.Run("insert 7", func(t *testing.T) {
+			tree.Insert(7, 7)
 
-			t.Run("insert 6", func(t *testing.T) {
-				t.Skip("FIXME")
-				tree.Insert(6, 6)
-
-				ensureStructure(t, tree.root,
+			ensureStructure(t, tree.root,
+				newInternal(
 					newInternal(
 						newInternal(
 							newInternal(
@@ -344,6 +374,8 @@ func TestGenericTreeInsert(t *testing.T) {
 								),
 							),
 						),
+					),
+					newInternal(
 						newInternal(
 							newInternal(
 								newInternal(
@@ -353,6 +385,8 @@ func TestGenericTreeInsert(t *testing.T) {
 									},
 								),
 							),
+						),
+						newInternal(
 							newInternal(
 								newInternal(
 									&leafNode[int, int]{
@@ -360,24 +394,109 @@ func TestGenericTreeInsert(t *testing.T) {
 										Values: []int{3},
 									},
 								),
+							),
+							newInternal(
 								newInternal(
 									&leafNode[int, int]{
 										Runts:  []int{4},
 										Values: []int{4},
 									},
+								),
+								newInternal(
 									&leafNode[int, int]{
-										Runts:  []int{5, 6},
-										Values: []int{5, 6},
+										Runts:  []int{5},
+										Values: []int{5},
+									},
+									&leafNode[int, int]{
+										Runts:  []int{6, 7},
+										Values: []int{6, 7},
 									},
 								),
 							),
 						),
 					),
-				)
-			})
-		} else {
-			t.Skip("TODO: tests when adoption is disabled")
-		}
+				),
+			)
+		})
+
+		t.Run("insert 8", func(t *testing.T) {
+			tree.Insert(8, 8)
+
+			tree.render(os.Stderr, "AFTER 8: ")
+
+			ensureStructure(t, tree.root,
+				newInternal(
+					newInternal(
+						newInternal(
+							newInternal(
+								newInternal(
+									newInternal(
+										&leafNode[int, int]{
+											Runts:  []int{1},
+											Values: []int{1},
+										},
+									),
+								),
+							),
+						),
+					),
+					newInternal(
+						newInternal(
+							newInternal(
+								newInternal(
+									newInternal(
+										&leafNode[int, int]{
+											Runts:  []int{2},
+											Values: []int{2},
+										},
+									),
+								),
+							),
+						),
+						newInternal(
+							newInternal(
+								newInternal(
+									newInternal(
+										&leafNode[int, int]{
+											Runts:  []int{3},
+											Values: []int{3},
+										},
+									),
+								),
+							),
+							newInternal(
+								newInternal(
+									newInternal(
+										&leafNode[int, int]{
+											Runts:  []int{4},
+											Values: []int{4},
+										},
+									),
+								),
+								newInternal(
+									newInternal(
+										&leafNode[int, int]{
+											Runts:  []int{5},
+											Values: []int{5},
+										},
+									),
+									newInternal(
+										&leafNode[int, int]{
+											Runts:  []int{6},
+											Values: []int{6},
+										},
+										&leafNode[int, int]{
+											Runts:  []int{7, 8},
+											Values: []int{7, 8},
+										},
+									),
+								),
+							),
+						),
+					),
+				),
+			)
+		})
 	})
 
 	t.Run("order 4", func(t *testing.T) {
