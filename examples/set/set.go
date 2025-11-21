@@ -4,13 +4,12 @@ import (
 	"github.com/karrick/gobptree"
 )
 
-const order = 64
-
 type SyncSetInt64 struct {
 	tree *gobptree.GenericTree[int64, struct{}]
 }
 
 func NewSyncSetInt64() *SyncSetInt64 {
+	const order = 64
 	tree, err := gobptree.NewGenericTree[int64, struct{}](order)
 	if err != nil {
 		panic(err)
