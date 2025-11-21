@@ -89,6 +89,7 @@ func (t *GenericTree[K, V]) unlock() {
 // error if the key was not a member of the tree.
 func (t *GenericTree[K, V]) Delete(key K) {
 	debug := newDebug(false, "GenericTree.Delete(key=%v, order=%d)", key, t.order)
+	debug("BEFORE")
 
 	// Because a delete operation may result in removal of the root node, need
 	// to acquire exclusive lock for the entire tree before begin, then
@@ -96,7 +97,7 @@ func (t *GenericTree[K, V]) Delete(key K) {
 	t.lock()
 	defer t.unlock()
 
-	debug("BEFORE deleteKey keys: %v\n", t.getKeys())
+	// debug("BEFORE deleteKey keys: %v\n", t.getKeys())
 
 	// Before visiting each node, must acquire its lock. Because a delete
 	// might modify all nodes from the root of the tree to the leaf node, need
@@ -110,7 +111,7 @@ func (t *GenericTree[K, V]) Delete(key K) {
 	rootSize, _ := t.root.deleteKey(t.insertionIndex, t.minSize, key)
 	enough := rootSize >= t.minSize
 
-	debug("AFTER deleteKey enough=%t keys: %v\n", enough, t.getKeys())
+	// debug("AFTER deleteKey enough=%t keys: %v\n", enough, t.getKeys())
 
 	if enough {
 		return // root node is large enough

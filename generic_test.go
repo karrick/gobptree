@@ -38,8 +38,8 @@ func TestGenericTreeDelete(t *testing.T) {
 
 		for _, v := range values {
 			tree.Insert(v, v)
-			tree.render(os.Stderr, fmt.Sprintf("AFTER Insert(%v) ", v))
 		}
+		tree.render(os.Stderr, "AFTER INSERTS: ")
 
 		// Ensure all values can be found in the tree.
 		ensureTreeValues(t, tree, []int{0, 1, 2, 3, 4, 5, 6, 7})
