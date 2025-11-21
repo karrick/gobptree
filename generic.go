@@ -14,47 +14,6 @@ import (
 	"sync"
 )
 
-// searchGreaterThanOrEqualTo returns the index of the first value from values
-// that is greater than or equal to key.
-func searchGreaterThanOrEqualTo[K cmp.Ordered](key K, keys []K) int {
-	var lo int
-
-	hi := len(keys)
-	if hi <= 1 {
-		return 0
-	}
-	hi--
-
-loop:
-	i := (lo + hi) >> 1
-	if key < keys[i] {
-		if hi = i; lo < hi {
-			goto loop
-		}
-		return lo
-	}
-	if keys[i] < key {
-		if lo = i + 1; lo < hi {
-			goto loop
-		}
-		return lo
-	}
-	return i // match
-}
-
-// searchLessThanOrEqualTo returns the index of the first value from values
-// that is less than or equal to key.
-func searchLessThanOrEqualTo[K cmp.Ordered](key K, keys []K) int {
-	index := searchGreaterThanOrEqualTo(key, keys)
-	// convert result to less than or equal to
-	if index == len(keys) || key < keys[index] {
-		if index > 0 {
-			return index - 1
-		}
-	}
-	return index
-}
-
 // node represents either an internal or a leaf node for a GenericTree with
 // keys of a cmp.Ordered type, and values of any type.
 type node[K cmp.Ordered, V any] interface {
@@ -62,26 +21,26 @@ type node[K cmp.Ordered, V any] interface {
 	adoptFromLeft(node[K, V])
 	adoptFromRight(node[K, V])
 	count() int
-	deleteKey(int, K) (int, K)
+	deleteKey(func([]K, K) (int, bool), int, K) (int, K)
 	isInternal() bool
 	lock()
 	render(io.Writer, string) // TESTING
 	rlock()
 	runlock()
-	runts() []K // DEBUG
-	smallest() K
-	split(order int) node[K, V]
+	runts() []K  // DEBUG
+	smallest() K // TODO now only rebalance needs this?
 	unlock()
-	updateKey(K, int, bool, func(V, bool) V) node[K, V]
+	updateKey(func([]K, K) (int, bool), K, int, bool, func(V, bool) V) node[K, V]
 }
 
 // GenericTree is a B+Tree of elements using key whose type satisfy the
 // cmp.Ordered constraint.
 type GenericTree[K cmp.Ordered, V any] struct {
-	root      node[K, V]
-	order     int // order is the maximum number of elements each node may have
-	minSize   int // minSize is the minimum number of elements each node may have
-	rootMutex sync.RWMutex
+	root           node[K, V]
+	insertionIndex func([]K, K) (int, bool)
+	order          int // order is the maximum number of elements each node may have
+	minSize        int // minSize is the minimum number of elements each node may have
+	rootMutex      sync.RWMutex
 }
 
 // NewGenericTree returns a newly initialized GenericTree of the specified
@@ -95,8 +54,9 @@ func NewGenericTree[K cmp.Ordered, V any](order int) (*GenericTree[K, V], error)
 			Runts:  make([]K, 0, order),
 			Values: make([]V, 0, order),
 		},
-		minSize: order >> 1, // each node should store be at least half full
-		order:   order,
+		insertionIndex: insertionIndexSelect[K](),
+		minSize:        order >> 1, // each node should store be at least half full
+		order:          order,
 	}, nil
 }
 
@@ -150,7 +110,7 @@ func (t *GenericTree[K, V]) Delete(key K) {
 	// NOTE: Before invoking count method, we know we can return without
 	// combining nodes when deleteKey returns true. If deleteKey returns
 	// false, then root node no longer has the minimum number of items.
-	rootSize, _ := t.root.deleteKey(t.minSize, key)
+	rootSize, _ := t.root.deleteKey(t.insertionIndex, t.minSize, key)
 	enough := rootSize >= t.minSize
 
 	if debug { // DEBUG
@@ -487,7 +447,7 @@ func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
 		fmt.Fprintf(os.Stderr, "GenericTree.Update(%v, callback): order: %d\n", key, t.order)
 	}
 
-	newSibling := t.root.updateKey(key, t.order, false, callback)
+	newSibling := t.root.updateKey(t.insertionIndex, key, t.order, false, callback)
 	if newSibling == nil {
 		fmt.Fprintf(os.Stderr, "GenericTree.Update(%v, callback): no root split\n", key)
 		return
