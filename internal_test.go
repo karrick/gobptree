@@ -765,6 +765,8 @@ func TestGenericInternalNodeSplit(t *testing.T) {
 func TestGenericInternalNodeUpdateKey(t *testing.T) {
 	const order = 4
 
+	// TODO: add tests to handle when callback returns error.
+
 	insertionIndex := insertionIndexSelect[int]()
 
 	t.Run("node no split; child no split", func(t *testing.T) {
@@ -786,7 +788,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 				}
 				internalA := newInternal(leafA, leafB, leafC)
 
-				newSibling := internalA.updateKey(insertionIndex, 10, order, false, callbackExpects(t, 0, false))
+				newSibling, err := internalA.updateKey(insertionIndex, 10, order, false, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("internalA", func(t *testing.T) {
 					ensureStructure(t, internalA,
@@ -820,7 +823,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 				}
 				internalA := newInternal(leafA, leafB, leafC)
 
-				newSibling := internalA.updateKey(insertionIndex, 12, order, false, callbackExpects(t, 0, false))
+				newSibling, err := internalA.updateKey(insertionIndex, 12, order, false, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("internalA", func(t *testing.T) {
 					ensureStructure(t, internalA,
@@ -854,7 +858,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 				}
 				internalA := newInternal(leafA, leafB, leafC)
 
-				newSibling := internalA.updateKey(insertionIndex, 17, order, false, callbackExpects(t, 0, false))
+				newSibling, err := internalA.updateKey(insertionIndex, 17, order, false, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("internalA", func(t *testing.T) {
 					ensureStructure(t, internalA,
@@ -888,7 +893,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 				}
 				internalA := newInternal(leafA, leafB, leafC)
 
-				newSibling := internalA.updateKey(insertionIndex, 27, order, false, callbackExpects(t, 0, false))
+				newSibling, err := internalA.updateKey(insertionIndex, 27, order, false, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("internalA", func(t *testing.T) {
 					ensureStructure(t, internalA,
@@ -922,7 +928,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 				}
 				internalA := newInternal(leafA, leafB, leafC)
 
-				newSibling := internalA.updateKey(insertionIndex, 37, order, false, callbackExpects(t, 0, false))
+				newSibling, err := internalA.updateKey(insertionIndex, 37, order, false, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("internalA", func(t *testing.T) {
 					ensureStructure(t, internalA,
@@ -959,7 +966,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 			}
 			internalA := newInternal(leafA, leafB, leafC)
 
-			newSibling := internalA.updateKey(insertionIndex, 11, order, true, callbackExpects(t, 11, true))
+			newSibling, err := internalA.updateKey(insertionIndex, 11, order, true, callbackExpects(t, 11, true))
+			ensureError(t, err)
 
 			t.Run("internalA", func(t *testing.T) {
 				ensureStructure(t, internalA,
@@ -993,7 +1001,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 			}
 			internalA := newInternal(leafA, leafB, leafC)
 
-			newSibling := internalA.updateKey(insertionIndex, 21, order, false, callbackExpects(t, 21, true))
+			newSibling, err := internalA.updateKey(insertionIndex, 21, order, false, callbackExpects(t, 21, true))
+			ensureError(t, err)
 
 			t.Run("internalA", func(t *testing.T) {
 				ensureStructure(t, internalA,
@@ -1027,7 +1036,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 			}
 			internalA := newInternal(leafA, leafB, leafC)
 
-			newSibling := internalA.updateKey(insertionIndex, 31, order, false, callbackExpects(t, 31, true))
+			newSibling, err := internalA.updateKey(insertionIndex, 31, order, false, callbackExpects(t, 31, true))
+			ensureError(t, err)
 
 			t.Run("internalA", func(t *testing.T) {
 				ensureStructure(t, internalA,
@@ -1061,7 +1071,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 			}
 			internalA := newInternal(leafA, leafB, leafC)
 
-			newSibling := internalA.updateKey(insertionIndex, 23, order, false, callbackExpects(t, 23, true))
+			newSibling, err := internalA.updateKey(insertionIndex, 23, order, false, callbackExpects(t, 23, true))
+			ensureError(t, err)
 
 			t.Run("internalA", func(t *testing.T) {
 				ensureStructure(t, internalA,
@@ -1094,7 +1105,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 				}
 				internalA := newInternal(leafA, leafB)
 
-				newSibling := internalA.updateKey(insertionIndex, 10, order, false, callbackExpects(t, 0, false))
+				newSibling, err := internalA.updateKey(insertionIndex, 10, order, false, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("internalA", func(t *testing.T) {
 					ensureStructure(t, internalA,
@@ -1132,7 +1144,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 				}
 				internalA := newInternal(leafA, leafB, leafC)
 
-				newSibling := internalA.updateKey(insertionIndex, 12, order, false, callbackExpects(t, 0, false))
+				newSibling, err := internalA.updateKey(insertionIndex, 12, order, false, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("internalA", func(t *testing.T) {
 					ensureStructure(t, internalA,
@@ -1170,7 +1183,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 				}
 				internalA := newInternal(leafA, leafB, leafC)
 
-				newSibling := internalA.updateKey(insertionIndex, 19, order, false, callbackExpects(t, 0, false))
+				newSibling, err := internalA.updateKey(insertionIndex, 19, order, false, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("internalA", func(t *testing.T) {
 					ensureStructure(t, internalA,
@@ -1218,7 +1232,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 				}
 				internalA := newInternal(leafA, leafB, leafC, leafD)
 
-				newSibling := internalA.updateKey(insertionIndex, 10, order, false, callbackExpects(t, 0, false))
+				newSibling, err := internalA.updateKey(insertionIndex, 10, order, false, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				// NOTE: Because we do not have a single structure to compare
 				// against, but rather have the original internal node and its new
@@ -1276,7 +1291,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 				}
 				internalA := newInternal(leafA, leafB, leafC, leafD)
 
-				newSibling := internalA.updateKey(insertionIndex, 12, order, false, callbackExpects(t, 0, false))
+				newSibling, err := internalA.updateKey(insertionIndex, 12, order, false, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				// NOTE: Because we do not have a single structure to compare
 				// against, but rather have the original internal node and its new
@@ -1329,7 +1345,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 				}
 				internalA := newInternal(leafA, leafB, leafC)
 
-				newSibling := internalA.updateKey(insertionIndex, 19, order, false, callbackExpects(t, 0, false))
+				newSibling, err := internalA.updateKey(insertionIndex, 19, order, false, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("internalA", func(t *testing.T) {
 					ensureStructure(t, internalA,
@@ -1367,7 +1384,8 @@ func TestGenericInternalNodeUpdateKey(t *testing.T) {
 		}
 		internalA := newInternal(leafA, leafB)
 
-		newSibling := internalA.updateKey(insertionIndex, 4, order, false, callbackExpects(t, 0, false))
+		newSibling, err := internalA.updateKey(insertionIndex, 4, order, false, callbackExpects(t, 0, false))
+		ensureError(t, err)
 
 		// internalA.render(os.Stderr, "AFTER INSERT 4 internalA : ")
 		// newSibling.render(os.Stderr, "AFTER INSERT 4 newSibling: ")

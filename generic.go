@@ -28,7 +28,7 @@ type node[K cmp.Ordered, V any] interface {
 	runts() []K  // DEBUG
 	smallest() K // TODO now only rebalance needs this?
 	unlock()
-	updateKey(func([]K, K) (int, bool), K, int, bool, func(V, bool) V) node[K, V]
+	updateKey(func([]K, K) (int, bool), K, int, bool, func(V, bool) (V, error)) (node[K, V], error)
 }
 
 // GenericTree is a B+Tree of elements using key whose type satisfy the
@@ -153,11 +153,11 @@ func (tree *GenericTree[K, V]) getKeys() []K {
 
 // Insert inserts the key-value pair into the tree, replacing any existing
 // value with the new value when the key is already in the tree.
-func (t *GenericTree[K, V]) Insert(key K, value V) {
+func (t *GenericTree[K, V]) Insert(key K, value V) error {
 	// NOTE: This has the Same logic as Update, and rather than duplicate that
 	// logic, merely invoke Update method with a callback that ignores its
 	// arguments and returns the value to be stored.
-	t.Update(key, func(_ V, _ bool) V { return value })
+	return t.Update(key, func(_ V, _ bool) (V, error) { return value, nil })
 }
 
 // Rebalance will rebalance the tree while ensuring that each node has no more
@@ -421,7 +421,7 @@ func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 // invoked with nil and false to signify the key was not found. After this
 // method returns, the key will exist in the tree with the new value returned
 // by the callback function.
-func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
+func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) (V, error)) error {
 	debug := newDebug(false, "GenericTree.Update(key=%v, order=%d)", key, t.order)
 
 	// Because updating the tree may change the tree's pointer to the root
@@ -429,10 +429,14 @@ func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
 	t.lock()
 	defer t.unlock()
 
-	newSibling := t.root.updateKey(t.insertionIndex, key, t.order, false, callback)
+	newSibling, err := t.root.updateKey(t.insertionIndex, key, t.order, false, callback)
+	if err != nil {
+		return err
+	}
+
 	if newSibling == nil {
 		debug("no root split\n")
-		return
+		return nil
 	}
 
 	debug("root split\n", key)
@@ -451,6 +455,8 @@ func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
 	newRoot.Children[1] = newSibling
 
 	t.root = newRoot
+
+	return nil
 }
 
 // NewScanner returns a cursor that iteratively returns key-value pairs from

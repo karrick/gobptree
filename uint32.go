@@ -38,7 +38,10 @@ func (t *Uint32Tree) Search(key uint32) (any, bool) {
 // method returns, the key will exist in the tree with the new value returned
 // by the callback function.
 func (t *Uint32Tree) Update(key uint32, callback func(any, bool) any) {
-	t.g.Update(key, callback)
+	t.g.Update(key, func(value any, ok bool) (any, error) {
+		v := callback(value, ok)
+		return v, nil
+	})
 }
 
 // NewScanner returns a cursor that iteratively returns key-value pairs from

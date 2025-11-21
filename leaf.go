@@ -262,9 +262,10 @@ func (n *leafNode[K, V]) String() string {
 //
 // This method returns the new node when this node split in order to
 // accommodate the new key.
-func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bool), key K, order int, knownPresent bool, callback func(V, bool) V) node[K, V] {
+func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bool), key K, order int, knownPresent bool, callback func(V, bool) (V, error)) (node[K, V], error) {
 	debug := newDebug(false, "leafNode.updateKey(key=%v, order=%d)", key, order)
 
+	var err error
 	var keyZeroValue K
 	var valueZeroValue V
 
@@ -282,8 +283,8 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 	if knownPresent {
 		// DONE panic("TEST LEAF NODE: KEY KNOWN PRESENT")
 		debug("KNOWN_PRESENT is true: node=%v\n", n)
-		n.Values[0] = callback(n.Values[0], true)
-		return nil
+		n.Values[0], err = callback(n.Values[0], true)
+		return nil, err
 	}
 
 	// When the key is not already known to be present because it was found in
@@ -296,12 +297,19 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 	if ok {
 		// DONE panic("TEST LEAF NODE; KEY FOUND IN RUNTS")
 		debug("ALREADY PRESENT: index=%d; node=%v\n", index, n)
-		n.Values[index] = callback(n.Values[index], true)
-		return nil
+		n.Values[index], err = callback(n.Values[index], true)
+		return nil, err
 	}
 
 	// POST: Key is not present in node.
-	newValue := callback(valueZeroValue, false)
+	newValue, err := callback(valueZeroValue, false)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Optimize this similar to the internal node, where it checks
+	// whether the node is full, and if so splits it first, then has a single
+	// chunk of code to insert.
 
 	// When this node can accommodate at least one more element, no node
 	// splitting will be required.
@@ -320,9 +328,9 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 
 		// Store the new key and value, as returned by the callback function.
 		n.Runts[index] = key
-		n.Values[index] = callback(valueZeroValue, false)
+		n.Values[index] = newValue
 		debug("AFTER: NO SPLIT REQUIRED: index=%d node=%v\n", index, n)
-		return nil
+		return nil, nil
 	}
 
 	// POST: Node split is required.
@@ -344,7 +352,7 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 			n.Values = append(n.Values, newValue)
 			debug("AFTER n.split: KEY INSERTED AFTER VALUES ON LEFT SIDE: index=%d node=%v\n", index, n)
 			debug("AFTER n.split: KEY INSERTED AFTER VALUES ON LEFT SIDE: index=%d newSibling=%v\n", index, newSibling)
-			return newSibling
+			return newSibling, nil
 		}
 
 		// DONE panic("TEST LEAF NODE SPLIT REQUIRED; KEY ON LEFT SIDE; KEY BEFORE INDEX")
@@ -363,7 +371,7 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 
 		debug("AFTER n.split: KEY INSERTED EITHER BEFORE OR BETWEEN VALUES ON LEFT SIDE: index=%d node=%v\n", index, n)
 		debug("AFTER n.split: KEY INSERTED EITHER BEFORE OR BETWEEN VALUES ON LEFT SIDE: index=%d newSibling=%v\n", index, newSibling)
-		return newSibling
+		return newSibling, nil
 	}
 
 	// New key will go to newly created sibling.
@@ -376,7 +384,7 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 		newSibling.Values = append(newSibling.Values, newValue)
 		debug("AFTER n.split: KEY INSERTED AFTER VALUES ON RIGHT SIDE: index=%d node=%v\n", index, n)
 		debug("AFTER n.split: KEY INSERTED AFTER VALUES ON RIGHT SIDE: index=%d newNewSibling=%v\n", index, newSibling)
-		return newSibling
+		return newSibling, nil
 	}
 
 	// DONE panic("TEST LEAF NODE SPLIT REQUIRED; KEY ON RIGHT SIDE; KEY BEFORE INDEX")
@@ -395,5 +403,5 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 
 	debug("AFTER n.split: KEY INSERTED BETWEEN VALUES ON RIGHT SIDE: node=%v\n", n)
 	debug("AFTER n.split: KEY INSERTED BETWEEN VALUES ON RIGHT SIDE: newSibling=%v\n", newSibling)
-	return newSibling
+	return newSibling, nil
 }

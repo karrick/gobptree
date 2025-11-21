@@ -7,6 +7,8 @@ import (
 	"sync"
 )
 
+const attemptAdoption = true
+
 // internalNode represents an internal node for a GenericTree with keys of a
 // cmp.Ordered type. Its data is stored in a pair of strided arrays, where
 // Runts[0] corresponds to the smallest key in Children[0], and so forth for
@@ -383,9 +385,8 @@ func (n *internalNode[K, V]) String() string {
 //
 // This method returns the new node when this node split in order to
 // accommodate the new key.
-func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bool), key K, order int, knownPresent bool, callback func(V, bool) V) node[K, V] {
-	const attemptAdoption = false
-
+func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bool), key K, order int, knownPresent bool, callback func(V, bool) (V, error)) (node[K, V], error) {
+	var err error
 	var keyZeroValue K
 
 	debug := newDebug(false, "internalNode.updateKey(key=%v, order=%d)", key, order)
@@ -402,8 +403,8 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 	if knownPresent {
 		// DONE panic("TEST INTERNAL NODE: KEY KNOWN PRESENT")
 		debug("KNOWN_PRESENT is true: node=%v\n", n)
-		_ = n.Children[0].updateKey(insertionIndex, key, order, knownPresent, callback)
-		return nil
+		_, err = n.Children[0].updateKey(insertionIndex, key, order, knownPresent, callback)
+		return nil, err
 	}
 
 	// When the key is not already known to be present, search for key in the
@@ -423,8 +424,8 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 		// DONE panic("TEST INTERNAL NODE KEY FOUND IN RUNTS OF INTERNAL NODE")
 
 		debug("ALREADY PRESENT: index=%d node=%v\n", index, n)
-		_ = child.updateKey(insertionIndex, key, order, true, callback)
-		return nil
+		_, err = child.updateKey(insertionIndex, key, order, true, callback)
+		return nil, err
 	}
 
 	// POST: even when the key is not a member of the runts slice, it may
@@ -435,12 +436,15 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 		// The child can accept another element without splitting.
 
 		// DONE panic("TEST CHILD WILL NOT SPLIT")
-		_ = child.updateKey(insertionIndex, key, order, false, callback)
-		n.Runts[index] = child.smallest()
+		_, err = child.updateKey(insertionIndex, key, order, false, callback)
+		if err != nil {
+			return nil, err
+		}
 
+		n.Runts[index] = child.smallest()
 		debug("NOT ALREADY PRESENT: CHILD CAN FIT MORE: index=%d node=%v\n", index, n)
 		debug("NOT ALREADY PRESENT: CHILD CAN FIT MORE: child=%v\n", child)
-		return nil
+		return nil, nil
 	}
 
 	if attemptAdoption {
@@ -455,10 +459,13 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 				// When left sibling can accept another node, have it adopt
 				// from child, so child has room for this key.
 				leftSibling.adoptFromRight(child)
-				_ = child.updateKey(insertionIndex, key, order, false, callback)
+				_, err = child.updateKey(insertionIndex, key, order, false, callback)
+				if err != nil {
+					return nil, err
+				}
 				n.Runts[index] = child.smallest()
 				// DONE panic("TEST left adopt from child")
-				return nil
+				return nil, nil
 			}
 		}
 
@@ -473,10 +480,13 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 				// When right sibling can accept another node, have it adopt
 				// from child, so child has room for this key.
 				rightSibling.adoptFromLeft(child)
-				_ = child.updateKey(insertionIndex, key, order, false, callback)
+				_, err = child.updateKey(insertionIndex, key, order, false, callback)
+				if err != nil {
+					return nil, err
+				}
 				n.Runts[index] = child.smallest()
-				panic("TEST right adopt from child")
-				return nil
+				// panic("TEST right adopt from child")
+				return nil, nil
 			}
 		}
 	}
@@ -487,7 +497,11 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 	// Insert key into child, and because afterward it may have a new smallest
 	// value, update the runt corresponding to the child node after the key
 	// was inserted.
-	childSibling := child.updateKey(insertionIndex, key, order, false, callback)
+	childSibling, err := child.updateKey(insertionIndex, key, order, false, callback)
+	if err != nil {
+		return nil, err
+	}
+
 	n.Runts[index] = child.smallest()
 
 	debug("AFTER child.updateKey: node=%v\n", n)
@@ -497,7 +511,7 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 	if childSibling == nil {
 		// When the child did not split, simply return.
 		// DONE panic("TEST NO NEW CHILD SIBLING")
-		return nil
+		return nil, nil
 	}
 
 	childSiblingSmallest := childSibling.smallest()
@@ -549,7 +563,7 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 		// NOTE: This required because caller expects interface and this
 		// variable is declared as a pointer to a non-interface.
 		debug("RETURN: node sibling: %s\n", nodeSibling)
-		return nodeSibling
+		return nodeSibling, nil
 	}
-	return nil
+	return nil, nil
 }

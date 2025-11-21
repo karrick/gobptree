@@ -20,7 +20,7 @@ func TestGenericTreeNew(t *testing.T) {
 
 func TestGenericTreeDelete(t *testing.T) {
 	t.Run("order 2", func(t *testing.T) {
-		// t.Skip("FIXME: order of 2 panics")
+		t.Skip("FIXME: order of 2 panics")
 
 		tree, err := NewGenericTree[int, int](2)
 		ensureError(t, err)
@@ -774,6 +774,20 @@ func TestGenericTreeInsert(t *testing.T) {
 		})
 	})
 
+	t.Run("order 32", func(t *testing.T) {
+		const order = 32
+		tree, err := NewGenericTree[int, int](order)
+		ensureError(t, err)
+
+		for i := range math.MaxInt8 {
+			tree.Insert(i, i)
+		}
+
+		tree.render(os.Stderr, "AFTER INSERT: ")
+
+		t.Error("TESTING")
+	})
+
 	t.Run("single leaf", func(t *testing.T) {
 		t.Run("when fewer than order elements", func(t *testing.T) {
 			t.Run("when empty", func(t *testing.T) {
@@ -1215,7 +1229,7 @@ func TestGenericTreeUpdate(t *testing.T) {
 	tree, err := NewGenericTree[int, string](8)
 	ensureError(t, err)
 
-	tree.Update(1, func(value string, ok bool) string {
+	tree.Update(1, func(value string, ok bool) (string, error) {
 		if got, want := ok, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
@@ -1223,17 +1237,17 @@ func TestGenericTreeUpdate(t *testing.T) {
 		if got, want := value, ""; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		return "first"
+		return "first", nil
 	})
 
-	tree.Update(1, func(value string, ok bool) string {
+	tree.Update(1, func(value string, ok bool) (string, error) {
 		if got, want := ok, true; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
 		if got, want := value, "first"; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		return "second"
+		return "second", nil
 	})
 
 	value, ok := tree.Search(1)
@@ -1246,7 +1260,7 @@ func TestGenericTreeUpdate(t *testing.T) {
 
 	tree.Insert(3, "third")
 
-	tree.Update(2, func(value string, ok bool) string {
+	tree.Update(2, func(value string, ok bool) (string, error) {
 		if got, want := ok, false; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
@@ -1254,7 +1268,7 @@ func TestGenericTreeUpdate(t *testing.T) {
 		if got, want := value, ""; got != want {
 			t.Errorf("GOT: %v; WANT: %v", got, want)
 		}
-		return "fourth"
+		return "fourth", nil
 	})
 
 	value, ok = tree.Search(2)

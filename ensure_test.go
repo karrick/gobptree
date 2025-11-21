@@ -136,7 +136,11 @@ func ensureStructure[K cmp.Ordered, V any](t *testing.T, got, want node[K, V]) {
 		// IMPORTANT: Must stitch before running following checks.
 		_ = stitchNextValues(want, nil)
 
-		ensureNodesMatch(t, got, want)
+		if attemptAdoption {
+			ensureSame(t, getNodeValues(t, got), getNodeValues(t, want))
+		} else {
+			ensureNodesMatch(t, got, want)
+		}
 	})
 }
 
@@ -150,6 +154,48 @@ func ensureTreeValues[K cmp.Ordered, V any](t *testing.T, tree *GenericTree[K, V
 
 		ensureSame(t, got, want)
 	})
+}
+
+func getNodeValues[K cmp.Ordered, V any](t *testing.T, n node[K, V]) []V {
+	t.Helper()
+
+	var leaf *leafNode[K, V]
+	var values []V
+
+	n.rlock() // Acquire the read-lock for the node
+
+	for leaf == nil {
+		switch tv := n.(type) {
+		case *internalNode[K, V]:
+			child := tv.Children[0] // Next node to visit is the child node
+			child.rlock()           // Acquire the read-lock for the child node
+			tv.runlock()            // Release the read-lock for this node
+			n = child               // Visit child node next
+
+		case *leafNode[K, V]:
+			// NOTE: The read-lock for the leaf node will be released when
+			// scanner is closed.
+			leaf = tv
+
+		default:
+			// Cannot get here unless bug introduced in library.
+			panic(fmt.Errorf("BUG: GOT: %#v; WANT: node[K,V]", n))
+
+		}
+	}
+
+	for leaf != nil {
+		values = append(values, leaf.Values...)
+		n := leaf.Next
+		leaf.runlock()
+		if n == nil {
+			return values
+		}
+		n.rlock()
+		leaf = n
+	}
+
+	return values
 }
 
 func getTreeValues[K cmp.Ordered, V any](t *testing.T, tree *GenericTree[K, V]) []V {
@@ -171,9 +217,9 @@ func getTreeValues[K cmp.Ordered, V any](t *testing.T, tree *GenericTree[K, V]) 
 // test helpers to create new internal and leaf nodes
 ////////////////////////////////////////
 
-func callbackExpects(t *testing.T, wantValue int, wantOk bool) func(int, bool) int {
+func callbackExpects(t *testing.T, wantValue int, wantOk bool) func(int, bool) (int, error) {
 	// t.Helper()
-	return func(gotValue int, gotOk bool) int {
+	return func(gotValue int, gotOk bool) (int, error) {
 		// t.Helper()
 		if gotValue != wantValue {
 			t.Errorf("value: GOT: %v; WANT: %v", gotValue, wantValue)
@@ -181,7 +227,7 @@ func callbackExpects(t *testing.T, wantValue int, wantOk bool) func(int, bool) i
 		if gotOk != wantOk {
 			t.Errorf("ok: GOT: %v; WANT: %v", gotOk, wantOk)
 		}
-		return -1
+		return -1, nil
 	}
 }
 

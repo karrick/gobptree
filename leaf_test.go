@@ -617,6 +617,8 @@ func TestGenericLeafNodeSplit(t *testing.T) {
 func TestGenericLeafNodeUpdateKey(t *testing.T) {
 	const order = 4
 
+	// TODO: add tests to handle when callback returns error.
+
 	insertionIndex := insertionIndexSelect[int]()
 
 	t.Run("no split", func(t *testing.T) {
@@ -629,7 +631,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 					Values: []int{11, 13, 15},
 				}
 
-				newSibling := leafA.updateKey(insertionIndex, 10, order, knownPresentFalse, callbackExpects(t, 0, false))
+				newSibling, err := leafA.updateKey(insertionIndex, 10, order, knownPresentFalse, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("leafA", func(t *testing.T) {
 					ensureNodesMatch(t, leafA, &leafNode[int, int]{
@@ -648,7 +651,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 					Values: []int{11, 13, 15},
 				}
 
-				newSibling := leafA.updateKey(insertionIndex, 12, order, knownPresentFalse, callbackExpects(t, 0, false))
+				newSibling, err := leafA.updateKey(insertionIndex, 12, order, knownPresentFalse, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("leafA", func(t *testing.T) {
 					ensureNodesMatch(t, leafA, &leafNode[int, int]{
@@ -667,7 +671,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 					Values: []int{11, 13, 15},
 				}
 
-				newSibling := leafA.updateKey(insertionIndex, 14, order, knownPresentFalse, callbackExpects(t, 0, false))
+				newSibling, err := leafA.updateKey(insertionIndex, 14, order, knownPresentFalse, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("leafA", func(t *testing.T) {
 					ensureNodesMatch(t, leafA, &leafNode[int, int]{
@@ -686,7 +691,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 					Values: []int{11, 13, 15},
 				}
 
-				newSibling := leafA.updateKey(insertionIndex, 16, order, knownPresentFalse, callbackExpects(t, 0, false))
+				newSibling, err := leafA.updateKey(insertionIndex, 16, order, knownPresentFalse, callbackExpects(t, 0, false))
+				ensureError(t, err)
 
 				t.Run("leafA", func(t *testing.T) {
 					ensureNodesMatch(t, leafA, &leafNode[int, int]{
@@ -709,7 +715,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 					Values: []int{11, 13, 15, 17},
 				}
 
-				newSibling := leafA.updateKey(insertionIndex, 11, order, knownPresentTrue, callbackExpects(t, 11, true))
+				newSibling, err := leafA.updateKey(insertionIndex, 11, order, knownPresentTrue, callbackExpects(t, 11, true))
+				ensureError(t, err)
 
 				t.Run("leafA", func(t *testing.T) {
 					ensureNodesMatch(t, leafA, &leafNode[int, int]{
@@ -730,7 +737,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 					Values: []int{11, 13, 15, 17},
 				}
 
-				newSibling := leafA.updateKey(insertionIndex, 15, order, knownPresentFalse, callbackExpects(t, 15, true))
+				newSibling, err := leafA.updateKey(insertionIndex, 15, order, knownPresentFalse, callbackExpects(t, 15, true))
+				ensureError(t, err)
 
 				t.Run("leafA", func(t *testing.T) {
 					ensureNodesMatch(t, leafA, &leafNode[int, int]{
@@ -751,7 +759,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 					Values: []int{11, 13, 15, 17},
 				}
 
-				newSibling := leafA.updateKey(insertionIndex, 17, order, knownPresentFalse, callbackExpects(t, 17, true))
+				newSibling, err := leafA.updateKey(insertionIndex, 17, order, knownPresentFalse, callbackExpects(t, 17, true))
+				ensureError(t, err)
 
 				t.Run("leafA", func(t *testing.T) {
 					ensureNodesMatch(t, leafA, &leafNode[int, int]{
@@ -780,7 +789,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 				Next:   leafB,
 			}
 
-			newSibling := leafA.updateKey(insertionIndex, 10, order, knownPresentFalse, callbackExpects(t, 0, false))
+			newSibling, err := leafA.updateKey(insertionIndex, 10, order, knownPresentFalse, callbackExpects(t, 0, false))
+			ensureError(t, err)
 
 			t.Run("leafA", func(t *testing.T) {
 				ensureNodesMatch(t, leafA, &leafNode[int, int]{
@@ -810,7 +820,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 				Values: []int{11, 13, 15, 17},
 			}
 
-			newSibling := leafA.updateKey(insertionIndex, 12, order, knownPresentFalse, callbackExpects(t, 0, false))
+			newSibling, err := leafA.updateKey(insertionIndex, 12, order, knownPresentFalse, callbackExpects(t, 0, false))
+			ensureError(t, err)
 
 			t.Run("leafA", func(t *testing.T) {
 				ensureNodesMatch(t, leafA, &leafNode[int, int]{
@@ -833,7 +844,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 				Values: []int{11, 13, 15, 17},
 			}
 
-			newSibling := leafA.updateKey(insertionIndex, 14, order, knownPresentFalse, callbackExpects(t, 0, false))
+			newSibling, err := leafA.updateKey(insertionIndex, 14, order, knownPresentFalse, callbackExpects(t, 0, false))
+			ensureError(t, err)
 
 			t.Run("leafA", func(t *testing.T) {
 				ensureNodesMatch(t, leafA, &leafNode[int, int]{
@@ -856,7 +868,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 				Values: []int{11, 13, 15, 17},
 			}
 
-			newSibling := leafA.updateKey(insertionIndex, 16, order, knownPresentFalse, callbackExpects(t, 0, false))
+			newSibling, err := leafA.updateKey(insertionIndex, 16, order, knownPresentFalse, callbackExpects(t, 0, false))
+			ensureError(t, err)
 
 			t.Run("leafA", func(t *testing.T) {
 				ensureNodesMatch(t, leafA, &leafNode[int, int]{
@@ -879,7 +892,8 @@ func TestGenericLeafNodeUpdateKey(t *testing.T) {
 				Values: []int{11, 13, 15, 17},
 			}
 
-			newSibling := leafA.updateKey(insertionIndex, 18, order, knownPresentFalse, callbackExpects(t, 0, false))
+			newSibling, err := leafA.updateKey(insertionIndex, 18, order, knownPresentFalse, callbackExpects(t, 0, false))
+			ensureError(t, err)
 
 			t.Run("leafA", func(t *testing.T) {
 				ensureNodesMatch(t, leafA, &leafNode[int, int]{
