@@ -500,43 +500,50 @@ func TestGenericTreeInsert(t *testing.T) {
 	})
 
 	t.Run("order 4", func(t *testing.T) {
-		t.Skip("FIXME")
 		tree, err := NewGenericTree[int, int](4)
 		ensureError(t, err)
 
-		t.Run("1", func(t *testing.T) {
+		t.Run("insert 1", func(t *testing.T) {
 			tree.Insert(1, 1)
-			ensureStructure(t, tree.root, &leafNode[int, int]{
-				Runts:  []int{1},
-				Values: []int{1},
-			})
+			ensureStructure(t, tree.root,
+				&leafNode[int, int]{
+					Runts:  []int{1},
+					Values: []int{1},
+				},
+			)
 		})
 
-		t.Run("2", func(t *testing.T) {
+		t.Run("insert 2", func(t *testing.T) {
 			tree.Insert(2, 2)
-			ensureStructure(t, tree.root, &leafNode[int, int]{
-				Runts:  []int{1, 2},
-				Values: []int{1, 2},
-			})
+			ensureStructure(t, tree.root,
+				&leafNode[int, int]{
+					Runts:  []int{1, 2},
+					Values: []int{1, 2},
+				},
+			)
 		})
 
-		t.Run("3", func(t *testing.T) {
+		t.Run("insert 3", func(t *testing.T) {
 			tree.Insert(3, 3)
-			ensureStructure(t, tree.root, &leafNode[int, int]{
-				Runts:  []int{1, 2, 3},
-				Values: []int{1, 2, 3},
-			})
+			ensureStructure(t, tree.root,
+				&leafNode[int, int]{
+					Runts:  []int{1, 2, 3},
+					Values: []int{1, 2, 3},
+				},
+			)
 		})
 
-		t.Run("4", func(t *testing.T) {
+		t.Run("insert 4", func(t *testing.T) {
 			tree.Insert(4, 4)
-			ensureStructure(t, tree.root, &leafNode[int, int]{
-				Runts:  []int{1, 2, 3, 4},
-				Values: []int{1, 2, 3, 4},
-			})
+			ensureStructure(t, tree.root,
+				&leafNode[int, int]{
+					Runts:  []int{1, 2, 3, 4},
+					Values: []int{1, 2, 3, 4},
+				},
+			)
 		})
 
-		t.Run("5", func(t *testing.T) {
+		t.Run("insert 5", func(t *testing.T) {
 			tree.Insert(5, 5)
 
 			ensureStructure(t, tree.root,
@@ -553,7 +560,7 @@ func TestGenericTreeInsert(t *testing.T) {
 			)
 		})
 
-		t.Run("6", func(t *testing.T) {
+		t.Run("insert 6", func(t *testing.T) {
 			tree.Insert(6, 6)
 
 			ensureStructure(t, tree.root,
@@ -570,7 +577,7 @@ func TestGenericTreeInsert(t *testing.T) {
 			)
 		})
 
-		t.Run("7", func(t *testing.T) {
+		t.Run("insert 7", func(t *testing.T) {
 			tree.Insert(7, 7)
 
 			ensureStructure(t, tree.root,
@@ -591,7 +598,7 @@ func TestGenericTreeInsert(t *testing.T) {
 			)
 		})
 
-		t.Run("8", func(t *testing.T) {
+		t.Run("insert 8", func(t *testing.T) {
 			tree.Insert(8, 8)
 
 			ensureStructure(t, tree.root,
@@ -612,7 +619,7 @@ func TestGenericTreeInsert(t *testing.T) {
 			)
 		})
 
-		t.Run("9", func(t *testing.T) {
+		t.Run("insert 9", func(t *testing.T) {
 			tree.Insert(9, 9)
 
 			ensureStructure(t, tree.root,
@@ -637,36 +644,32 @@ func TestGenericTreeInsert(t *testing.T) {
 			)
 		})
 
-		t.Run("10", func(t *testing.T) {
+		t.Run("insert 10", func(t *testing.T) {
 			tree.Insert(10, 10)
 
 			ensureStructure(t, tree.root,
 				newInternal(
-					newInternal(
-						&leafNode[int, int]{
-							Runts:  []int{1, 2},
-							Values: []int{1, 2},
-						},
-						&leafNode[int, int]{
-							Runts:  []int{3, 4},
-							Values: []int{3, 4},
-						},
-					),
-					newInternal(
-						&leafNode[int, int]{
-							Runts:  []int{5, 6},
-							Values: []int{5, 6},
-						},
-						&leafNode[int, int]{
-							Runts:  []int{7, 8, 9, 10},
-							Values: []int{7, 8, 9, 10},
-						},
-					),
+					&leafNode[int, int]{
+						Runts:  []int{1, 2},
+						Values: []int{1, 2},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{3, 4},
+						Values: []int{3, 4},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{5, 6},
+						Values: []int{5, 6},
+					},
+					&leafNode[int, int]{
+						Runts:  []int{7, 8, 9, 10},
+						Values: []int{7, 8, 9, 10},
+					},
 				),
 			)
 		})
 
-		t.Run("11", func(t *testing.T) {
+		t.Run("insert 11", func(t *testing.T) {
 			tree.Insert(11, 11)
 
 			ensureStructure(t, tree.root,
@@ -699,7 +702,7 @@ func TestGenericTreeInsert(t *testing.T) {
 			)
 		})
 
-		t.Run("12", func(t *testing.T) {
+		t.Run("insert 12", func(t *testing.T) {
 			tree.Insert(12, 12)
 
 			ensureStructure(t, tree.root,
@@ -732,7 +735,7 @@ func TestGenericTreeInsert(t *testing.T) {
 			)
 		})
 
-		t.Run("13", func(t *testing.T) {
+		t.Run("insert 13", func(t *testing.T) {
 			tree.Insert(13, 13)
 
 			ensureStructure(t, tree.root,

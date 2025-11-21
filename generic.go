@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"sync"
 )
 
@@ -89,7 +88,7 @@ func (t *GenericTree[K, V]) unlock() {
 // Delete removes the key-value pair from the tree, or returns without an
 // error if the key was not a member of the tree.
 func (t *GenericTree[K, V]) Delete(key K) {
-	const debug = false
+	debug := newDebug(false, "GenericTree.Delete(key=%v, order=%d)", key, t.order)
 
 	// Because a delete operation may result in removal of the root node, need
 	// to acquire exclusive lock for the entire tree before begin, then
@@ -97,9 +96,7 @@ func (t *GenericTree[K, V]) Delete(key K) {
 	t.lock()
 	defer t.unlock()
 
-	if debug { // DEBUG
-		fmt.Fprintf(os.Stderr, "GenericTree.Delete(%v) BEFORE deleteKey keys: %v\n", key, t.getKeys())
-	}
+	debug("BEFORE deleteKey keys: %v\n", t.getKeys())
 
 	// Before visiting each node, must acquire its lock. Because a delete
 	// might modify all nodes from the root of the tree to the leaf node, need
@@ -113,9 +110,7 @@ func (t *GenericTree[K, V]) Delete(key K) {
 	rootSize, _ := t.root.deleteKey(t.insertionIndex, t.minSize, key)
 	enough := rootSize >= t.minSize
 
-	if debug { // DEBUG
-		fmt.Fprintf(os.Stderr, "GenericTree.Delete(%v) AFTER deleteKey enough=%t keys: %v\n", key, enough, t.getKeys())
-	}
+	debug("AFTER deleteKey enough=%t keys: %v\n", enough, t.getKeys())
 
 	if enough {
 		return // root node is large enough
@@ -174,7 +169,7 @@ func (t *GenericTree[K, V]) Insert(key K, value V) {
 //
 // NOTE: count must be between 2 and the tree order, inclusive: [2, order].
 func (t *GenericTree[K, V]) Rebalance(count int) error {
-	const debug = false
+	debug := newDebug(false, "GenericTree.Rebalance(count=%v, order=%d)", count, t.order)
 
 	if false {
 		// Enforce strict compliance with B+Tree properties.
@@ -219,11 +214,9 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 	// Create new linked-list of leaf nodes by copying from source to target
 	// nodes.
 	for sourceLeaf != nil {
-		if debug {
-			fmt.Fprintf(os.Stderr, "TOP OF LOOP\n")
-			fmt.Fprintf(os.Stderr, "source node remaining: %v\n", sourceLeaf.Runts[sourceCopyOffset:])
-			fmt.Fprintf(os.Stderr, "target node so far:    %v\n", targetLeaf.Runts[:targetCopyOffset])
-		}
+		debug("TOP OF LOOP\n")
+		debug("source node remaining: %v\n", sourceLeaf.Runts[sourceCopyOffset:])
+		debug("target node so far:    %v\n", targetLeaf.Runts[:targetCopyOffset])
 
 		space := count - targetCopyOffset // space is how much more slots available in target leaf
 
@@ -234,9 +227,7 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 			targetLeaf.Values = targetLeaf.Values[:targetCopyOffset]
 			targetCopyOffset = 0
 
-			if debug {
-				fmt.Fprintf(os.Stderr, "FINISHED TARGET LEAF: %v\n", targetLeaf.Runts)
-			}
+			debug("FINISHED TARGET LEAF: %v\n", targetLeaf.Runts)
 
 			// Create a new target leaf node.
 			targetLeafNext := &leafNode[K, V]{
@@ -250,9 +241,7 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 			space = count // new target leaf can accommodate count items
 		}
 
-		if debug {
-			fmt.Fprintf(os.Stderr, "target space remaining: %d\n", space)
-		}
+		debug("target space remaining: %d\n", space)
 
 		runtsCopied := copy(targetLeaf.Runts[targetCopyOffset:count], sourceLeaf.Runts[sourceCopyOffset:])
 		valuesCopied := copy(targetLeaf.Values[targetCopyOffset:count], sourceLeaf.Values[sourceCopyOffset:])
@@ -264,11 +253,8 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 		sourceCopyOffset += runtsCopied
 		targetCopyOffset += runtsCopied
 
-		if debug {
-			fmt.Fprintf(os.Stderr, "copy(targetleaf.Runts[%d:%d], sourceLeaf.Runts[%d:]) -> %d items copied\n", targetCopyOffset, count, sourceCopyOffset, runtsCopied)
-
-			fmt.Fprintf(os.Stderr, "target after: len=%d cap=%d %v\n", len(targetLeaf.Runts), cap(targetLeaf.Runts), targetLeaf.Runts[:targetCopyOffset])
-		}
+		debug("copy(targetleaf.Runts[%d:%d], sourceLeaf.Runts[%d:]) -> %d items copied\n", targetCopyOffset, count, sourceCopyOffset, runtsCopied)
+		debug("target after: len=%d cap=%d %v\n", len(targetLeaf.Runts), cap(targetLeaf.Runts), targetLeaf.Runts[:targetCopyOffset])
 
 		// POST: either target is full, or source is empty
 		if targetCopyOffset > count {
@@ -280,37 +266,29 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 		}
 
 		if sourceCopyOffset == len(sourceLeaf.Runts) {
-			if debug {
-				fmt.Fprintf(os.Stderr, "source copy offset == len source runts: %d == %d (need new source node)\n", sourceCopyOffset, len(sourceLeaf.Runts))
-			}
+			debug("source copy offset == len source runts: %d == %d (need new source node)\n", sourceCopyOffset, len(sourceLeaf.Runts))
 
 			// Advance to next leaf node, locking it first, then unlocking the
 			// current node before advancement.
 			sourceLeafNext := sourceLeaf.Next
 			if sourceLeafNext != nil {
-				if debug {
-					fmt.Fprintf(os.Stderr, "found another source leaf node\n")
-				}
+				debug("found another source leaf node\n")
 				sourceCopyOffset = 0
 				sourceLeafNext.rlock()
 			} else {
-				if debug {
-					fmt.Fprintf(os.Stderr, "did not find another source leaf node\n")
-				}
+				debug("did not find another source leaf node\n")
 			}
 			sourceLeaf.runlock()
 			sourceLeaf = sourceLeafNext
-		} else if debug {
-			fmt.Fprintf(os.Stderr, "source copy offset < len source runts: %d < %d (need new target node)\n", sourceCopyOffset, len(sourceLeaf.Runts))
+		} else {
+			debug("source copy offset < len source runts: %d < %d (need new target node)\n", sourceCopyOffset, len(sourceLeaf.Runts))
 		}
 	}
 
 	if targetCopyOffset > 0 {
 		targetLeaf.Runts = targetLeaf.Runts[:targetCopyOffset]
 		targetLeaf.Values = targetLeaf.Values[:targetCopyOffset]
-		if debug {
-			fmt.Fprintf(os.Stderr, "FINISHED LEAF: %v\n", targetLeaf.Runts)
-		}
+		debug("FINISHED LEAF: %v\n", targetLeaf.Runts)
 		bottomNodes = append(bottomNodes, targetLeaf)
 	}
 
@@ -324,18 +302,14 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 	// Continue building new layers on top of bottom nodes until bottom nodes
 	// has only a single element.
 	for len(bottomNodes) > 1 {
-		if debug {
-			for _, n := range bottomNodes {
-				fmt.Fprintf(os.Stderr, "BOTTOM NODE: %v\n", n)
-			}
+		for _, n := range bottomNodes {
+			debug("BOTTOM NODE: %v\n", n)
 		}
 		for _, bottomNode := range bottomNodes {
 			if len(internal.Runts) == count {
-				if debug {
-					fmt.Fprintf(os.Stderr, "FINISHED INTERNAL A: %v\n", internal)
-					for _, c := range internal.Children {
-						fmt.Fprintf(os.Stderr, "\tCHILD: %v\n", c)
-					}
+				debug("FINISHED INTERNAL A: %v\n", internal)
+				for _, c := range internal.Children {
+					debug("\tCHILD: %v\n", c)
 				}
 				topNodes = append(topNodes, internal)
 				internal = &internalNode[K, V]{
@@ -347,11 +321,9 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 			internal.Children = append(internal.Children, bottomNode)
 		}
 		if len(internal.Runts) > 0 {
-			if debug {
-				fmt.Fprintf(os.Stderr, "FINISHED INTERNAL B: %v\n", internal)
-				for _, c := range internal.Children {
-					fmt.Fprintf(os.Stderr, "\tCHILD: %v\n", c)
-				}
+			debug("FINISHED INTERNAL B: %v\n", internal)
+			for _, c := range internal.Children {
+				debug("\tCHILD: %v\n", c)
 			}
 			topNodes = append(topNodes, internal)
 			internal = &internalNode[K, V]{
@@ -359,10 +331,8 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 				Children: make([]node[K, V], 0, t.order),
 			}
 		}
-		if debug {
-			for _, n := range topNodes {
-				fmt.Fprintf(os.Stderr, "TOP NODE: %v\n", n)
-			}
+		for _, n := range topNodes {
+			debug("TOP NODE: %v\n", n)
 		}
 		bottomNodes = topNodes
 		topNodes = topNodes[:0]
@@ -436,26 +406,20 @@ func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 // method returns, the key will exist in the tree with the new value returned
 // by the callback function.
 func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) V) {
-	const debug = true
+	debug := newDebug(false, "GenericTree.Update(key=%v, order=%d)", key, t.order)
 
 	// Because updating the tree may change the tree's pointer to the root
 	// node, first acquire an exclusive lock to the tree.
 	t.lock()
 	defer t.unlock()
 
-	if debug {
-		fmt.Fprintf(os.Stderr, "GenericTree.Update(%v, callback): order: %d\n", key, t.order)
-	}
-
 	newSibling := t.root.updateKey(t.insertionIndex, key, t.order, false, callback)
 	if newSibling == nil {
-		fmt.Fprintf(os.Stderr, "GenericTree.Update(%v, callback): no root split\n", key)
+		debug("no root split\n")
 		return
 	}
 
-	if debug {
-		fmt.Fprintf(os.Stderr, "GenericTree.Update(%v, callback): root split\n", key)
-	}
+	debug("root split\n", key)
 
 	// POST: root has a new sibling; must create new internal node to hold
 	// them both.
