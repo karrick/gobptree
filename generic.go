@@ -350,6 +350,20 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 	return nil
 }
 
+// Range will invoke callback with every key-value pair from the tree in
+// ascending key order until either the callback returns false, or all pairs
+// have been visited.
+func (t *GenericTree[K, V]) Range(callback func(key K, value V) bool) {
+	cursor := t.NewScannerAll()
+	for cursor.Scan() {
+		k, v := cursor.Pair()
+		if !callback(k, v) {
+			_ = cursor.Close()
+			return
+		}
+	}
+}
+
 func (t *GenericTree[K, V]) render(iow io.Writer, prefix string) {
 	t.rlock()
 	t.root.render(iow, prefix)

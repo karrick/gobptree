@@ -1266,6 +1266,78 @@ func TestGenericTreeUpdate(t *testing.T) {
 	}
 }
 
+func TestGenericTreeRange(t *testing.T) {
+	t.Run("single leaf tree", func(t *testing.T) {
+		const order = 4
+
+		tree, err := NewGenericTree[int, int](order)
+		ensureError(t, err)
+
+		for i := range 4 {
+			tree.Insert(i, i*i)
+		}
+
+		var wantKeys []int
+		var wantValues []int
+
+		tree.Range(func(key int, value int) bool {
+			wantKeys = append(wantKeys, key)
+			wantValues = append(wantValues, value)
+			return true
+		})
+
+		ensureSame(t, []int{0, 1, 2, 3}, wantKeys)
+		ensureSame(t, []int{0, 1, 4, 9}, wantValues)
+	})
+	t.Run("multiple leaf tree", func(t *testing.T) {
+		const order = 4
+
+		tree, err := NewGenericTree[int, int](order)
+		ensureError(t, err)
+
+		for i := range 16 {
+			tree.Insert(i, i*i)
+		}
+
+		var wantKeys []int
+		var wantValues []int
+
+		tree.Range(func(key int, value int) bool {
+			wantKeys = append(wantKeys, key)
+			wantValues = append(wantValues, value)
+			return true
+		})
+
+		ensureSame(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, wantKeys)
+		ensureSame(t, []int{0, 1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144, 169, 196, 225}, wantValues)
+	})
+	t.Run("callback returns false", func(t *testing.T) {
+		const order = 4
+
+		tree, err := NewGenericTree[int, int](order)
+		ensureError(t, err)
+
+		for i := range 16 {
+			tree.Insert(i, i*i)
+		}
+
+		var wantKeys []int
+		var wantValues []int
+
+		tree.Range(func(key int, value int) bool {
+			if key >= 10 {
+				return false
+			}
+			wantKeys = append(wantKeys, key)
+			wantValues = append(wantValues, value)
+			return true
+		})
+
+		ensureSame(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, wantKeys)
+		ensureSame(t, []int{0, 1, 4, 9, 16, 25, 36, 49, 64, 81}, wantValues)
+	})
+}
+
 func TestGenericTreeScanner(t *testing.T) {
 	t.Run("empty tree", func(t *testing.T) {
 		t.Run("NewScanner", func(t *testing.T) {
