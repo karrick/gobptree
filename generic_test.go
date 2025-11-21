@@ -422,7 +422,7 @@ func TestGenericTreeInsert(t *testing.T) {
 		t.Run("insert 8", func(t *testing.T) {
 			tree.Insert(8, 8)
 
-			tree.render(os.Stderr, "AFTER 8: ")
+			// tree.render(os.Stderr, "AFTER 8: ")
 
 			ensureStructure(t, tree.root,
 				newInternal(
@@ -771,7 +771,6 @@ func TestGenericTreeInsert(t *testing.T) {
 	})
 
 	t.Run("single leaf", func(t *testing.T) {
-		t.Skip("FIXME")
 		t.Run("when fewer than order elements", func(t *testing.T) {
 			t.Run("when empty", func(t *testing.T) {
 				tree, err := NewGenericTree[int, int](4)
@@ -879,106 +878,52 @@ func TestGenericTreeInsert(t *testing.T) {
 				tree := gimme()
 				tree.Insert(0, 0)
 
-				root, ok := tree.root.(*internalNode[int, int])
-				if !ok {
-					t.Fatalf("GOT: %v; WANT: %v", ok, true)
-				}
-				// root should have two Runts and two leaf nodes for Children
-				if got, want := len(root.Runts), 2; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-				if got, want := len(root.Children), 2; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-				// ensure Children nodes are as expected for this case
-				if got, want := root.Runts[0], 0; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-
-				ensureStructure(t, root.Children[0], &leafNode[int, int]{
-					Runts:  []int{0, 10, 20},
-					Values: []int{0, 10, 20},
-					Next:   root.Children[1].(*leafNode[int, int]),
-				})
-
-				if got, want := root.Runts[1], 30; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-
-				ensureStructure(t, root.Children[1], &leafNode[int, int]{
-					Runts:  []int{30, 40},
-					Values: []int{30, 40},
-				})
+				ensureStructure(t, tree.root,
+					newInternal(
+						&leafNode[int, int]{
+							Runts:  []int{0, 10, 20},
+							Values: []int{0, 10, 20},
+						},
+						&leafNode[int, int]{
+							Runts:  []int{30, 40},
+							Values: []int{30, 40},
+						},
+					),
+				)
 			})
 			t.Run("when new key is in middle", func(t *testing.T) {
 				tree := gimme()
 				tree.Insert(25, 25)
 
-				root, ok := tree.root.(*internalNode[int, int])
-				if !ok {
-					t.Fatalf("GOT: %v; WANT: %v", ok, true)
-				}
-				// root should have two Runts and two leaf nodes for Children
-				if got, want := len(root.Runts), 2; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-				if got, want := len(root.Children), 2; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-				// ensure Children nodes are as expected for this case
-				if got, want := root.Runts[0], 10; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-
-				ensureStructure(t, root.Children[0], &leafNode[int, int]{
-					Runts:  []int{10, 20, 25},
-					Values: []int{10, 20, 25},
-					Next:   root.Children[1].(*leafNode[int, int]),
-				})
-
-				if got, want := root.Runts[1], 30; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-
-				ensureStructure(t, root.Children[1], &leafNode[int, int]{
-					Runts:  []int{30, 40},
-					Values: []int{30, 40},
-				})
+				ensureStructure(t, tree.root,
+					newInternal(
+						&leafNode[int, int]{
+							Runts:  []int{10, 20, 25},
+							Values: []int{10, 20, 25},
+						},
+						&leafNode[int, int]{
+							Runts:  []int{30, 40},
+							Values: []int{30, 40},
+						},
+					),
+				)
 			})
 			t.Run("when new key will be final node in right leaf", func(t *testing.T) {
 				tree := gimme()
 				tree.Insert(50, 50)
 
-				root, ok := tree.root.(*internalNode[int, int])
-				if !ok {
-					t.Fatalf("GOT: %v; WANT: %v", ok, true)
-				}
-				// root should have two Runts and two leaf nodes for Children
-				if got, want := len(root.Runts), 2; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-				if got, want := len(root.Children), 2; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-				// ensure Children nodes are as expected for this case
-				if got, want := root.Runts[0], 10; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-
-				ensureStructure(t, root.Children[0], &leafNode[int, int]{
-					Runts:  []int{10, 20},
-					Values: []int{10, 20},
-					Next:   root.Children[1].(*leafNode[int, int]),
-				})
-
-				if got, want := root.Runts[1], 30; got != want {
-					t.Fatalf("GOT: %v; WANT: %v", got, want)
-				}
-
-				ensureStructure(t, root.Children[1], &leafNode[int, int]{
-					Runts:  []int{30, 40, 50},
-					Values: []int{30, 40, 50},
-				})
+				ensureStructure(t, tree.root,
+					newInternal(
+						&leafNode[int, int]{
+							Runts:  []int{10, 20},
+							Values: []int{10, 20},
+						},
+						&leafNode[int, int]{
+							Runts:  []int{30, 40, 50},
+							Values: []int{30, 40, 50},
+						},
+					),
+				)
 			})
 		})
 	})

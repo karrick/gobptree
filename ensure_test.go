@@ -66,10 +66,10 @@ func ensureInternalNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want *int
 }
 
 func ensureLeafNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want *leafNode[K, V]) {
-	// t.Helper()
+	t.Helper()
 
 	t.Run("leaf", func(t *testing.T) {
-		// t.Helper()
+		t.Helper()
 
 		if got == nil {
 			if want == nil {
@@ -99,7 +99,7 @@ func ensureLeafNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want *leafNod
 }
 
 func ensureNodesMatch[K cmp.Ordered, V any](t *testing.T, got, want node[K, V]) {
-	// t.Helper()
+	t.Helper()
 
 	switch w := want.(type) {
 	case *internalNode[K, V]:
