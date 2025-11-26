@@ -9,6 +9,8 @@ import (
 	"cmp"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -34,27 +36,50 @@ type node[K cmp.Ordered, V any] interface {
 // GenericTree is a B+Tree of elements using key whose type satisfy the
 // cmp.Ordered constraint.
 type GenericTree[K cmp.Ordered, V any] struct {
-	root           node[K, V]
-	insertionIndex func([]K, K) (int, bool)
-	order          int // order is the maximum number of elements each node may have
-	minSize        int // minSize is the minimum number of elements each node may have
-	rootMutex      sync.RWMutex
+	root node[K, V]
+
+	// TODO: replace with internalNodeSearch (rather than leafNodeSearch),
+	// because searching for a key in an internal node is much more common
+	// than searching for the key in a leaf node.
+	insertionIndexFunc func([]K, K) (int, bool)
+
+	iow io.Writer
+
+	order     int // order is the maximum number of elements each node may have
+	minSize   int // minSize is the minimum number of elements each node may have
+	rootMutex sync.RWMutex
 }
 
 // NewGenericTree returns a newly initialized GenericTree of the specified
 // order.
-func NewGenericTree[K cmp.Ordered, V any](order int) (*GenericTree[K, V], error) {
-	if err := checkOrder(order); err != nil {
+func NewGenericTree[K cmp.Ordered, V any](name string, order int) (*GenericTree[K, V], error) {
+	err := checkOrder(order)
+	if err != nil {
 		return nil, err
+	}
+	var fh io.Writer = io.Discard
+	if name != "" {
+		dname, _ := filepath.Split(name)
+		if dname != "" && dname != "." {
+			err = os.MkdirAll(dname, 0777)
+			if err != nil {
+				return nil, err
+			}
+		}
+		fh, err = os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &GenericTree[K, V]{
 		root: &leafNode[K, V]{
 			Runts:  make([]K, 0, order),
 			Values: make([]V, 0, order),
 		},
-		insertionIndex: insertionIndexSelect[K](),
-		minSize:        order >> 1, // each node should store be at least half full
-		order:          order,
+		iow:                fh,
+		insertionIndexFunc: insertionIndexSelect[K](),
+		minSize:            order >> 1, // each node should store be at least half full
+		order:              order,
 	}, nil
 }
 
@@ -89,6 +114,11 @@ func (t *GenericTree[K, V]) unlock() {
 func (t *GenericTree[K, V]) Delete(key K) {
 	debug := newDebug(true, "GenericTree.Delete(key=%v, order=%d)", key, t.order)
 
+	_, err := fmt.Fprintf(t.iow, "DELETE %#v\n", key)
+	if err != nil {
+		return
+	}
+
 	debug("BEFORE deleteKey keys: %v\n", t.getKeys())
 
 	// Because a delete operation may result in removal of the root node, need
@@ -97,16 +127,16 @@ func (t *GenericTree[K, V]) Delete(key K) {
 	t.lock()
 	defer t.unlock()
 
-	// Before visiting each node, must acquire its lock. Because a delete
+	// Before visiting each node, must acquire its lock.  Because a delete
 	// might modify all nodes from the root of the tree to the leaf node, need
 	// to obtain an exclusive lock to each node.
 	t.root.lock()
 	defer t.root.unlock()
 
 	// NOTE: Before invoking count method, we know we can return without
-	// combining nodes when deleteKey returns true. If deleteKey returns
+	// combining nodes when deleteKey returns true.  If deleteKey returns
 	// false, then root node no longer has the minimum number of items.
-	rootSize, _ := t.root.deleteKey(t.insertionIndex, t.minSize, key)
+	rootSize, _ := t.root.deleteKey(t.insertionIndexFunc, t.minSize, key)
 	enough := rootSize >= t.minSize
 
 	// debug("AFTER deleteKey enough=%t keys: %v\n", enough, t.getKeys())
@@ -129,7 +159,7 @@ func (t *GenericTree[K, V]) Delete(key K) {
 		}
 	case *leafNode[K, V]:
 		// When root points to a single leaf node, there is nothing to be
-		// done. The tree is already the smallest it could be.
+		// done.  The tree is already the smallest it could be.
 	default:
 		// Cannot get here unless bug introduced in library.
 		panic(fmt.Errorf("BUG: GOT: %#v; WANT: node[K,V]", t.root))
@@ -157,16 +187,24 @@ func (t *GenericTree[K, V]) Insert(key K, value V) error {
 	// NOTE: This has the Same logic as Update, and rather than duplicate that
 	// logic, merely invoke Update method with a callback that ignores its
 	// arguments and returns the value to be stored.
-	return t.Update(key, func(_ V, _ bool) (V, error) { return value, nil })
+
+	// panic(fmt.Sprintf("insert(%#v, %#v)", key, value))
+
+	_, err := fmt.Fprintf(t.iow, "INSERT(%#v, %#v)\n", key, value)
+	if err != nil {
+		return err
+	}
+
+	return t.update(key, func(_ V, _ bool) (V, error) { return value, nil })
 }
 
 // Rebalance will rebalance the tree while ensuring that each node has no more
-// than the number of elements provided as an argument to the method. For
+// than the number of elements provided as an argument to the method.  For
 // instance, to rebalance an order 64 tree so each node contains exactly 32
 // children (except perhaps the final leaf node and its ancestors), one would
-// invoke Rebalance(32). This could also fully pack a tree so each node is as
-// full as possible, Rebalance(64). Both of these calls would speed up all
-// tree traversals by ensuring a balanced tree. However, they can also leave
+// invoke Rebalance(32).  This could also fully pack a tree so each node is as
+// full as possible, Rebalance(64).  Both of these calls would speed up all
+// tree traversals by ensuring a balanced tree.  However, they can also leave
 // room for additional growth throughout the tree's structure.
 //
 // NOTE: count must be between 2 and the tree order, inclusive: [2, order].
@@ -199,9 +237,9 @@ func (t *GenericTree[K, V]) Rebalance(count int) error {
 	defer t.unlock()
 
 	// Even though this is holding an exclusive lock to the tree, that only
-	// prevents other mutators from starting. There is a chance that other
+	// prevents other mutators from starting.  There is a chance that other
 	// goroutines are lazily traversing the tree in a way that does not
-	// require an exclusive lock on the entire tree. Therefore, when visiting
+	// require an exclusive lock on the entire tree.  Therefore, when visiting
 	// each node, must acquire read lock for that node, and release it only
 	// after acquiring read lock for the next node to visit.
 	n := t.root
@@ -370,10 +408,16 @@ func (t *GenericTree[K, V]) render(iow io.Writer, prefix string) {
 	t.runlock()
 }
 
-// Search returns the value associated with key from the tree. The second
+// Search returns the value associated with key from the tree.  The second
 // return value will be true when the key is in the tree, or will be false
 // when the key is not a member of the tree.
 func (t *GenericTree[K, V]) Search(key K) (V, bool) {
+	_, err := fmt.Fprintf(t.iow, "SEARCH(%#v)\n", key)
+	if err != nil {
+		var zeroValue V
+		return zeroValue, false
+	}
+
 	t.rlock()   // Before can load root field must acquire read lock
 	n := t.root // Load pointer to root of tree
 	t.runlock() // Release read lock on tree
@@ -386,6 +430,7 @@ func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 
 		case *internalNode[K, V]:
 			child := tv.Children[searchLessThanOrEqualTo(key, tv.Runts)]
+			// child := tv.Children[internalIndexFromLeafIndex(t.insertionIndexFunc(tv.Runts, key))]
 			child.rlock() // Acquire the read-lock for the child node
 			tv.runlock()  // Release the read-lock for this node
 			n = child     // Visit child node next
@@ -397,6 +442,7 @@ func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 			if len(tv.Runts) > 0 {
 				i := searchGreaterThanOrEqualTo(key, tv.Runts)
 				ok = key == tv.Runts[i]
+				// i, ok := t.insertionIndexFunc(tv.Runts, key)
 				if ok {
 					value = tv.Values[i]
 				}
@@ -417,29 +463,41 @@ func (t *GenericTree[K, V]) Search(key K) (V, bool) {
 
 // Update searches for key and invokes callback with key's associated value,
 // waits for callback to return a new value, and stores callback's return
-// value as the new value for key. When key is not found, callback will be
-// invoked with nil and false to signify the key was not found. After this
+// value as the new value for key.  When key is not found, callback will be
+// invoked with nil and false to signify the key was not found.  After this
 // method returns, the key will exist in the tree with the new value returned
 // by the callback function.
 func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) (V, error)) error {
-	debug := newDebug(false, "GenericTree.Update(key=%v, order=%d)", key, t.order)
+	_, err := fmt.Fprintf(t.iow, "UPDATE(%#v)\n", key)
+	if err != nil {
+		return err
+	}
 
+	return t.update(key, callback)
+}
+
+func (t *GenericTree[K, V]) update(key K, callback func(V, bool) (V, error)) error {
 	// Because updating the tree may change the tree's pointer to the root
 	// node, first acquire an exclusive lock to the tree.
 	t.lock()
 	defer t.unlock()
 
-	newSibling, err := t.root.updateKey(t.insertionIndex, key, t.order, false, callback)
+	debug := newDebug(false, "GenericTree.Update(key=%v, order=%d)", key, t.order)
+
+	t.root.lock()
+	defer t.root.unlock()
+
+	newSibling, err := t.root.updateKey(t.insertionIndexFunc, key, t.order, false, callback)
 	if err != nil {
 		return err
 	}
 
 	if newSibling == nil {
-		debug("no root split\n")
+		debug("root does not split\n")
 		return nil
 	}
 
-	debug("root split\n", key)
+	debug("root splits\n")
 
 	// POST: root has a new sibling; must create new internal node to hold
 	// them both.
@@ -462,12 +520,12 @@ func (t *GenericTree[K, V]) Update(key K, callback func(V, bool) (V, error)) err
 // NewScanner returns a cursor that iteratively returns key-value pairs from
 // the tree in ascending order starting at the specified key, or, if key is
 // not found, the next key; and ending after all successive pairs have been
-// returned. To enumerate all values in a tree, use NewScannerAll, which is
+// returned.  To enumerate all values in a tree, use NewScannerAll, which is
 // faster than invoking this method with the minimum key value.
 //
 // NOTE: This function exits still holding a read-lock on one of the tree's
 // leaf nodes, which will block other operations on the tree that require
-// modification of the locked node. The leaf node is only unlocked after
+// modification of the locked node.  The leaf node is only unlocked after
 // closing the Cursor or after Scan returns false.
 //
 //	var l int
@@ -513,7 +571,7 @@ func (t *GenericTree[K, V]) NewScanner(key K) *GenericCursor[K, V] {
 // findAndLockFirstLeaf walks the tree to the first leaf node, acquires a read
 // lock, then returns it.
 //
-// NOTE: Must have either read or exclusive lock for n.
+// NOTE: Must have either read lock for n.
 func (t *GenericTree[K, V]) findAndLockFirstLeaf(n node[K, V]) *leafNode[K, V] {
 	for {
 		switch tv := n.(type) {
@@ -538,13 +596,13 @@ func (t *GenericTree[K, V]) findAndLockFirstLeaf(n node[K, V]) *leafNode[K, V] {
 }
 
 // NewScannerAll returns a cursor that iteratively returns all key-value pairs
-// from the tree in ascending order. To start scanning at a particular key
-// value, use NewScanner. This method is faster than invoking NewScanner with
+// from the tree in ascending order.  To start scanning at a particular key
+// value, use NewScanner.  This method is faster than invoking NewScanner with
 // the minimum key value.
 //
 // NOTE: This function exits still holding a read-lock on one of the tree's
 // leaf nodes, which will block other operations on the tree that require
-// modification of the locked node. The leaf node is only unlocked after
+// modification of the locked node.  The leaf node is only unlocked after
 // closing the Cursor or after Scan returns false.
 //
 //	var l int
@@ -580,21 +638,21 @@ type GenericCursor[K cmp.Ordered, V any] struct {
 
 func newGenericCursor[K cmp.Ordered, V any](leaf *leafNode[K, V], index int) *GenericCursor[K, V] {
 	// Initialize cursor with index one smaller than requested, so initial
-	// scan lines up the cursor to reference the desired key-value pair. The
+	// scan lines up the cursor to reference the desired key-value pair.  The
 	// fact that this needs to use the index before the starting index is the
 	// only reason why this method exists, as the logic is invoked from
 	// several places.
 	return &GenericCursor[K, V]{leaf: leaf, index: index - 1}
 }
 
-// Close releases the lock on the leaf node under the cursor. This method is
+// Close releases the lock on the leaf node under the cursor.  This method is
 // provided to signal no further intention of scanning the remainder key-value
 // pairs in the tree, useful when caller does not intend to invoke Scan again,
 // but there are more elements to be returned.
 //
 // It is not necessary to invoke this method if the Scan method was invoked
-// and returned false. It is however safe to invoke this method multiple times
-// or after Scan returned false to signal no more items to be visited.
+// and returned false.  It is however safe to invoke this method multiple
+// times or after Scan returned false to signal no more items to be visited.
 func (c *GenericCursor[K, V]) Close() error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -622,9 +680,9 @@ func (c *GenericCursor[K, V]) Pair() (K, V) {
 
 // Scan advances the cursor to reference the next key-value pair in the tree
 // in ascending order, and returns true when there is at least one more
-// key-value pair to be observed with the Pair method. If the final key-value
+// key-value pair to be observed with the Pair method.  If the final key-value
 // pair has already been observed, this unlocks the final leaf in the tree and
-// returns false. This method must be invoked at least once before invoking
+// returns false.  This method must be invoked at least once before invoking
 // the Pair method.
 func (c *GenericCursor[K, V]) Scan() bool {
 	c.lock.Lock()

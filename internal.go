@@ -10,15 +10,15 @@ import (
 const attemptAdoption = true
 
 // internalNode represents an internal node for a GenericTree with keys of a
-// cmp.Ordered type. Its data is stored in a pair of strided arrays, where
+// cmp.Ordered type.  Its data is stored in a pair of strided arrays, where
 // Runts[0] corresponds to the smallest key in Children[0], and so forth for
 // additional slice elements.
 type internalNode[K cmp.Ordered, V any] struct {
 	// Runts stores the smallest key value for the corresponding Children
-	// slice. Runts[n] corresponds to Children[n].
+	// slice.  Runts[n] corresponds to Children[n].
 	Runts []K
 
-	// Children stores pointers to additional nodes of the tree. Runts[n]
+	// Children stores pointers to additional nodes of the tree.  Runts[n]
 	// corresponds to Chidlren[n].
 	Children []node[K, V]
 
@@ -53,16 +53,18 @@ func (n *internalNode[K, V]) unlock() {
 }
 
 // runts is a debugging method.
+//
+// NOTE: Node must be locked before calling.
 func (n *internalNode[K, V]) runts() []K {
-	n.rlock()
-	defer n.runlock()
+	// n.rlock()
+	// defer n.runlock()
 	return n.Runts
 }
 
 // absorbFromRight moves all of the sibling node's Runts and Children into
 // left node.
 //
-// NOTE: The sibling must be locked before calling.
+// NOTE: Both nodes must be locked before calling.
 func (left *internalNode[K, V]) absorbFromRight(sibling node[K, V]) {
 	right := sibling.(*internalNode[K, V])
 
@@ -78,7 +80,7 @@ func (left *internalNode[K, V]) absorbFromRight(sibling node[K, V]) {
 // adoptFromLeft moves one element from the sibling node to the right node,
 // after making room for it at the beginning of the right node's slices.
 //
-// NOTE: The sibling must be locked before calling.
+// NOTE: Both nodes must be locked before calling.
 func (right *internalNode[K, V]) adoptFromLeft(sibling node[K, V]) {
 	// TODO: Consider direct copy so do not need the zero values.
 	var keyZeroValue K
@@ -112,7 +114,7 @@ func (right *internalNode[K, V]) adoptFromLeft(sibling node[K, V]) {
 
 // adoptFromRight moves one element from the sibling node to the left node.
 //
-// NOTE: The sibling must be locked before calling.
+// NOTE: Both nodes must be locked before calling.
 //
 // NOTE: After return the right smallest has changed.
 func (left *internalNode[K, V]) adoptFromRight(sibling node[K, V]) {
@@ -143,7 +145,7 @@ func (n *internalNode[K, V]) count() int { return len(n.Runts) }
 // deleteKey removes key and its value from the node, returning the number of
 // elements after deletion.
 //
-// NOTE: Must hold exclusive lock to node before invocation.
+// NOTE: Node must be locked before calling.
 func (n *internalNode[K, V]) deleteKey(insertionIndex func(keys []K, key K) (int, bool), minSize int, key K) (int, K) {
 	var smallestRunt K
 
@@ -154,7 +156,7 @@ func (n *internalNode[K, V]) deleteKey(insertionIndex func(keys []K, key K) (int
 
 	debug("BEFORE: index=%d runts=%v\n", index, n.Runts)
 
-	// Acquire exclusive lock to the child node.
+	// Acquire exclusive access to the child node.
 	child := n.Children[index]
 	child.lock()
 	defer child.unlock()
@@ -173,43 +175,43 @@ func (n *internalNode[K, V]) deleteKey(insertionIndex func(keys []K, key K) (int
 	// POST: child is too small; need to combine node with one of its
 	// immediate neighbors.
 
-	var left, right node[K, V]
-	var leftCount, rightCount int
+	var leftSibling, rightSibling node[K, V]
+	var rightCount int
 
 	// Because the child node is too small, we need to have it adopt one
-	// element from either its left or its right siblings. We will try the
+	// element from either its left or its right siblings.  We will try the
 	// right sibling first to encourage left-leaning trees.
 
 	rightIndex := index + 1
 	if rightIndex < len(n.Runts) {
 		// When child has a right sibling, check whether the right sibling has
 		// more elements than the minimum:
-		right = n.Children[rightIndex]
+		rightSibling = n.Children[rightIndex]
 
-		// Acquire exclusive access to the right sibling.
-		right.lock()
-		defer right.unlock()
+		// Acquire exclusive access to the right sibling of child.
+		rightSibling.lock()
+		defer rightSibling.unlock()
 
-		rightCount = right.count()
+		rightCount = rightSibling.count()
 		if rightCount > minSize {
 			// When right sibling has more then the minimum number of
 			// elements, the child node can adopt a single element from its
 			// right sibling.
 			debug("BEFORE: CHILD ADOPTS FROM RIGHT: child-runts=%v\n", child.runts())
-			debug("BEFORE: CHILD ADOPTS FROM RIGHT: right-runts=%v\n", right.runts())
+			debug("BEFORE: CHILD ADOPTS FROM RIGHT: right-runts=%v\n", rightSibling.runts())
 
-			child.adoptFromRight(right)
+			child.adoptFromRight(rightSibling)
 
 			// After the child node has adopted an element from its right
 			// sibling, this node, which is the parent to both, has a new runt
 			// value for the right sibling.
-			n.Runts[rightIndex] = right.smallest()
+			n.Runts[rightIndex] = rightSibling.smallest()
 
 			// After the child has adopted a single element from its sibling,
 			// it has exactly the minimum number of elements.
 			debug("AFTER: CHILD ADOPTS FROM RIGHT: runts=%v\n", n.Runts)
 			debug("AFTER: CHILD ADOPTS FROM RIGHT: child-runts=%v\n", child.runts())
-			debug("AFTER: CHILD ADOPTS FROM RIGHT: right-runts=%v\n", right.runts())
+			debug("AFTER: CHILD ADOPTS FROM RIGHT: right-runts=%v\n", rightSibling.runts())
 			return len(n.Runts), n.Runts[0]
 		}
 	}
@@ -218,21 +220,18 @@ func (n *internalNode[K, V]) deleteKey(insertionIndex func(keys []K, key K) (int
 	if leftIndex >= 0 {
 		// When child has a left sibling, check whether the left sibling has
 		// more elements than the minimum:
-		left = n.Children[leftIndex]
+		leftSibling = n.Children[leftIndex]
+		leftSibling.lock()
+		defer leftSibling.unlock()
 
-		// Acquire exclusive access to the left sibling.
-		left.lock()
-		defer left.unlock()
-
-		leftCount = left.count()
-		if leftCount > minSize {
+		if leftSibling.count() > minSize {
 			// When left sibling has more then the minimum number of elements,
 			// the child node can adopt a single element from its left
 			// sibling.
-			debug("BEFORE: CHILD ADOPTS FROM LEFT: left-runts=%v\n", left.runts())
+			debug("BEFORE: CHILD ADOPTS FROM LEFT: left-runts=%v\n", leftSibling.runts())
 			debug("BEFORE: CHILD ADOPTS FROM LEFT: child-runts=%v\n", child.runts())
 
-			child.adoptFromLeft(left)
+			child.adoptFromLeft(leftSibling)
 
 			// After the child node has adopted an element from its left
 			// sibling, this node, which is the parent to both, has a new runt
@@ -242,19 +241,19 @@ func (n *internalNode[K, V]) deleteKey(insertionIndex func(keys []K, key K) (int
 			// After the child has adopted a single element from its sibling,
 			// it has exactly the minimum number of elements.
 			debug("AFTER: CHILD ADOPTS FROM LEFT: runts=%v\n", n.Runts)
-			debug("AFTER: CHILD ADOPTS FROM LEFT: left-runts=%v\n", left.runts())
+			debug("AFTER: CHILD ADOPTS FROM LEFT: left-runts=%v\n", leftSibling.runts())
 			debug("AFTER: CHILD ADOPTS FROM LEFT: child-runts=%v\n", child.runts())
 			return len(n.Runts), n.Runts[0]
 		}
 
 		// The child could not adopt an element from either its right or left
-		// sibling. Because the child does have a left sibling, have its left
+		// sibling.  Because the child does have a left sibling, have its left
 		// sibling absorb all of the child's elements, and eliminate the
 		// child.
-		debug("BEFORE: LEFT ABSORBS CHILD: left-runts=%v\n", left.runts())
+		debug("BEFORE: LEFT ABSORBS CHILD: left-runts=%v\n", leftSibling.runts())
 		debug("BEFORE: LEFT ABSORBS CHILD: child-runts=%v\n", child.runts())
 
-		left.absorbFromRight(child)
+		leftSibling.absorbFromRight(child)
 
 		// Shift the runt values and children pointers one element to the left
 		// to eliminate the child node.
@@ -266,7 +265,7 @@ func (n *internalNode[K, V]) deleteKey(insertionIndex func(keys []K, key K) (int
 		n.Children = n.Children[:len(n.Children)-1]
 
 		debug("AFTER: LEFT ABSORBS CHILD: runts=%v\n", n.Runts)
-		debug("AFTER: LEFT ABSORBS CHILD: left-runts=%v\n", left.runts())
+		debug("AFTER: LEFT ABSORBS CHILD: left-runts=%v\n", leftSibling.runts())
 		debug("AFTER: LEFT ABSORBS CHILD: child-runts=%v\n", child.runts())
 
 		// This internal node has one fewer children after the child was
@@ -279,12 +278,12 @@ func (n *internalNode[K, V]) deleteKey(insertionIndex func(keys []K, key K) (int
 
 	if rightCount > 0 {
 		// The child could not adopt an element from its right sibling, and it
-		// has no left sibling. Therefore, have the child absorb all of the
+		// has no left sibling.  Therefore, have the child absorb all of the
 		// elements from its right sibling.
 		debug("BEFORE: CHILD ABSORBS RIGHT: child-runts=%v\n", child.runts())
-		debug("BEFORE: CHILD ABSORBS RIGHT: right-runts=%v\n", right.runts())
+		debug("BEFORE: CHILD ABSORBS RIGHT: right-runts=%v\n", rightSibling.runts())
 
-		child.absorbFromRight(right)
+		child.absorbFromRight(rightSibling)
 
 		// Shift the runt values and children pointers one element to the left
 		// to eliminate the right node.
@@ -297,7 +296,7 @@ func (n *internalNode[K, V]) deleteKey(insertionIndex func(keys []K, key K) (int
 
 		debug("AFTER: CHILD ABSORBS RIGHT: runts=%v\n", n.Runts)
 		debug("AFTER: CHILD ABSORBS RIGHT: child-runts=%v\n", child.runts())
-		debug("AFTER: CHILD ABSORBS RIGHT: right-runts=%v\n", right.runts())
+		debug("AFTER: CHILD ABSORBS RIGHT: right-runts=%v\n", rightSibling.runts())
 
 		// This internal node has one fewer Children after the child absorbed
 		// its right sibling.
@@ -324,20 +323,17 @@ func (n *internalNode[K, V]) isInternal() bool { return true }
 func (n *internalNode[K, V]) render(iow io.Writer, prefix string) {
 	n.rlock()
 
-	_, _ = fmt.Fprintf(iow, "%sINTERNAL:\n", prefix)
-
-	childPrefix := prefix + "    "
-	lenItems := len(n.Runts)
-
-	for i := 0; i < lenItems; i++ {
-		_, _ = fmt.Fprintf(iow, "%s  - RUNT: %v\n", prefix, n.Runts[i])
-		n.Children[i].render(iow, childPrefix)
+	for i, child := range n.Children {
+		child.render(iow, fmt.Sprintf("%s%d/", prefix, i))
 	}
 
 	n.runlock()
 }
 
+// NOTE: Node must be locked before calling.
 func (n *internalNode[K, V]) smallest() K {
+	// n.rlock()
+	// defer n.runlock()
 	if len(n.Runts) == 0 {
 		// Cannot get here unless bug introduced in library.
 		panic("BUG: internal node has no Children")
@@ -347,6 +343,8 @@ func (n *internalNode[K, V]) smallest() K {
 
 // split will return a new internal node after moving half of its values to
 // the newly created internal node.
+//
+// NOTE: Node must be locked before calling.
 func (n *internalNode[K, V]) split(order int) *internalNode[K, V] {
 	debug := newDebug(false, "internalNode.split(%v)", order)
 
@@ -370,6 +368,7 @@ func (n *internalNode[K, V]) split(order int) *internalNode[K, V] {
 	return sibling
 }
 
+// NOTE: Node must be locked before calling.
 func (n *internalNode[K, V]) String() string {
 	return fmt.Sprintf("INTERNAL: %v", n.Runts)
 }
@@ -378,65 +377,69 @@ func (n *internalNode[K, V]) String() string {
 // being handled in deleteKey.
 
 // updateKey will locate the key-value pair, creating a place for the pair if
-// the key does not yet exist in the tree. It invokes callback with the key's
+// the key does not yet exist in the tree.  It invokes callback with the key's
 // value and true if the key was in the tree, or the zero value for the key's
-// type and false if the key was not in the tree. This stores the return value
+// type and false if the key was not in the tree.  This stores the return value
 // of callback as the value for key in the tree before returning.
 //
 // This method returns the new node when this node split in order to
 // accommodate the new key.
-func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bool), key K, order int, knownPresent bool, callback func(V, bool) (V, error)) (node[K, V], error) {
+//
+// NOTE: Node must be locked before calling.
+func (n *internalNode[K, V]) updateKey(insertionIndexFunc func(keys []K, key K) (int, bool), key K, order int, knownPresent bool, callback func(V, bool) (V, error)) (node[K, V], error) {
 	var err error
 	var keyZeroValue K
 
-	debug := newDebug(false, "internalNode.updateKey(key=%v, order=%d)", key, order)
-
-	n.lock()
-	defer n.unlock()
+	debug := newDebug(true, "internalNode.updateKey(key=%v, order=%d)", key, order)
 
 	// OPTIMIZATION: The knownPresent argument is set to true by an ancestor
 	// node when it discovers the key is an exact member of its Runts
-	// slice. In such cases, the key is already present and stored at a node
-	// found by following index 0 to a leaf node. Because the key is already
+	// slice.  In such cases, the key is already present and stored at a node
+	// found by following index 0 to a leaf node.  Because the key is already
 	// present, this is an update rather than an insertion, and no node
 	// splitting will be required..
 	if knownPresent {
 		// DONE panic("TEST INTERNAL NODE: KEY KNOWN PRESENT")
 		debug("KNOWN_PRESENT is true: node=%v\n", n)
-		_, err = n.Children[0].updateKey(insertionIndex, key, order, knownPresent, callback)
+		_, err = n.Children[0].updateKey(insertionIndexFunc, key, order, knownPresent, callback)
 		return nil, err
 	}
 
 	// When the key is not already known to be present, search for key in the
 	// runt slice to determine at which child node this key would be stored.
-	index, ok := insertionIndex(n.Runts, key)
+	index, ok := insertionIndexFunc(n.Runts, key)
+	debug("index-1=%d runts=%v\n", index, n.Runts)
 	index = internalIndexFromLeafIndex(index, ok)
+	debug("index-2=%d runts=%v\n", index, n.Runts)
 
+	// Acquire exclusive access to the child node.
 	child := n.Children[index]
+	child.lock()
+	defer child.unlock()
 
 	// Check whether key is already present because it short-cuts question
 	// about needing to split any nodes.
 	if ok {
 		// OPTIMIZATION: When key is member of the runts, then it is also a
-		// member of the tree. Therefore, this is an update rather than an
+		// member of the tree.  Therefore, this is an update rather than an
 		// insertion, and no node splitting will be required.
 
 		// DONE panic("TEST INTERNAL NODE KEY FOUND IN RUNTS OF INTERNAL NODE")
 
 		debug("ALREADY PRESENT: index=%d node=%v\n", index, n)
-		_, err = child.updateKey(insertionIndex, key, order, true, callback)
+		_, err = child.updateKey(insertionIndexFunc, key, order, true, callback)
 		return nil, err
 	}
 
 	// POST: even when the key is not a member of the runts slice, it may
-	// still be in the tree. However, we cannot rule out whether a node split
+	// still be in the tree.  However, we cannot rule out whether a node split
 	// will be required at this node or below.
 
 	if child.count() < order {
 		// The child can accept another element without splitting.
 
 		// DONE panic("TEST CHILD WILL NOT SPLIT")
-		_, err = child.updateKey(insertionIndex, key, order, false, callback)
+		_, err = child.updateKey(insertionIndexFunc, key, order, false, callback)
 		if err != nil {
 			return nil, err
 		}
@@ -451,15 +454,21 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 		// If child has a left sibling that has extra room, first have the
 		// left sibling adopt an element from the child, then insert the new
 		// element in the child.
+
 		leftIndex := index - 1
 		if leftIndex >= 0 {
-			// This has a left sibling.
+			// When child has a left sibling, check whether the left sibling
+			// has extra room.
 			leftSibling := n.Children[leftIndex]
+			leftSibling.lock()
+			defer leftSibling.unlock()
+
 			if leftSibling.count() < order {
-				// When left sibling can accept another node, have it adopt
-				// from child, so child has room for this key.
+				// When left sibling has room for another element, have it
+				// adopt from child, so child has room for this key.
 				leftSibling.adoptFromRight(child)
-				_, err = child.updateKey(insertionIndex, key, order, false, callback)
+
+				_, err = child.updateKey(insertionIndexFunc, key, order, false, callback)
 				if err != nil {
 					// Must restore previous structure when child would be too
 					// small.
@@ -477,13 +486,18 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 		// element in the child.
 		rightIndex := index + 1
 		if rightIndex < len(n.Runts) {
-			// This has a right sibling.
+			// When child has a right sibling, check whether the right sibling
+			// has extra room.
 			rightSibling := n.Children[rightIndex]
+			rightSibling.lock()
+			defer rightSibling.unlock()
+
 			if rightSibling.count() < order {
-				// When right sibling can accept another node, have it adopt
-				// from child, so child has room for this key.
+				// When right sibling has room for another element, have it
+				// adopt from child, so child has room for this key.
 				rightSibling.adoptFromLeft(child)
-				_, err = child.updateKey(insertionIndex, key, order, false, callback)
+
+				_, err = child.updateKey(insertionIndexFunc, key, order, false, callback)
 				if err != nil {
 					// Must restore previous structure when child would be too
 					// small.
@@ -503,7 +517,7 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 	// Insert key into child, and because afterward it may have a new smallest
 	// value, update the runt corresponding to the child node after the key
 	// was inserted.
-	childSibling, err := child.updateKey(insertionIndex, key, order, false, callback)
+	childSibling, err := child.updateKey(insertionIndexFunc, key, order, false, callback)
 	if err != nil {
 		return nil, err
 	}
@@ -540,15 +554,13 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 			debug("AFTER n.split: child sibling gets attached to node sibling: %s\n", nodeSibling)
 			attachNode = nodeSibling
 		}
-
-		// but first must attach node and node sibling
 	} else {
 		debug("NO NODE SPLIT: child sibling gets attached to node: %s\n", n)
 		attachNode = n
 	}
 
 	// Where will child sibling be added inside attach node?
-	index, _ = insertionIndex(attachNode.Runts, childSiblingSmallest)
+	index, _ = insertionIndexFunc(attachNode.Runts, childSiblingSmallest)
 
 	// Append zero values to make room in arrays
 	attachNode.Runts = append(attachNode.Runts, keyZeroValue)
@@ -571,5 +583,6 @@ func (n *internalNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int
 		debug("RETURN: node sibling: %s\n", nodeSibling)
 		return nodeSibling, nil
 	}
+
 	return nil, nil
 }

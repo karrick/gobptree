@@ -9,15 +9,15 @@ import (
 )
 
 // leafNode represents a leafNode node for a GenericTree with keys of
-// cmp.Ordered type. Its data is stored in a pair of strided arrays, where
+// cmp.Ordered type.  Its data is stored in a pair of strided arrays, where
 // Runts[0] corresponds to the value in Values[0], and so forth for additional
 // slice elements.
 type leafNode[K cmp.Ordered, V any] struct {
-	// Runts stores the key corresponding to the Values slice. Runts[n]
+	// Runts stores the key corresponding to the Values slice.  Runts[n]
 	// corresponds to Values[n].
 	Runts []K
 
-	// Values stores values of the tree. Runts[n] corresponds to Values[n].
+	// Values stores values of the tree.  Runts[n] corresponds to Values[n].
 	Values []V
 
 	Next *leafNode[K, V] // Next points to next leaf to allow enumeration
@@ -67,7 +67,7 @@ func (n *leafNode[K, V]) runts() []K {
 // node, and sets the left's Next field to the value of the sibling's Next
 // field.
 //
-// NOTE: The sibling must be locked before calling.
+// NOTE: Both nodes must be locked before calling.
 func (left *leafNode[K, V]) absorbFromRight(sibling node[K, V]) {
 	right := sibling.(*leafNode[K, V])
 
@@ -90,7 +90,7 @@ func (left *leafNode[K, V]) absorbFromRight(sibling node[K, V]) {
 // adoptFromLeft moves one element from the sibling node to the right node,
 // after making room for it at the beginning of the right node's slices.
 //
-// NOTE: The sibling must be locked before calling.
+// NOTE: Both nodes must be locked before calling.
 func (right *leafNode[K, V]) adoptFromLeft(sibling node[K, V]) {
 	// TODO: Consider direct copy so do not need the zero values.
 	var keyZeroValue K
@@ -125,7 +125,7 @@ func (right *leafNode[K, V]) adoptFromLeft(sibling node[K, V]) {
 
 // adoptFromRight moves one element from the sibling node to the left node.
 //
-// NOTE: sibling must be locked before calling.
+// NOTE: Both nodes must be locked before calling.
 //
 // NOTE: After return the right smallest has changed.
 func (left *leafNode[K, V]) adoptFromRight(sibling node[K, V]) {
@@ -156,7 +156,7 @@ func (n *leafNode[K, V]) count() int { return len(n.Runts) }
 // deleteKey removes key and its value from the node, returning the number of
 // elements after deletion, and the smallest value in the node.
 //
-// NOTE: Must hold exclusive lock to node before invocation.
+// NOTE: Node must be locked before calling.
 func (n *leafNode[K, V]) deleteKey(insertionIndex func(keys []K, key K) (int, bool), minSize int, key K) (int, K) {
 	debug := newDebug(false, "leafNode.deleteKey(key=%v, minSize=%d)", key, minSize)
 
@@ -194,20 +194,19 @@ func (n *leafNode[K, V]) isInternal() bool { return false }
 func (n *leafNode[K, V]) render(iow io.Writer, prefix string) {
 	n.rlock()
 
-	_, _ = fmt.Fprintf(iow, "%s- LEAF:\n", prefix)
-
-	childPrefix := prefix + "    "
-	lenItems := len(n.Runts)
-
-	for i := 0; i < lenItems; i++ {
-		_, _ = fmt.Fprintf(iow, "%s- %v = %v\n", childPrefix, n.Runts[i], n.Values[i])
+	for i, runt := range n.Runts {
+		_, _ = fmt.Fprintf(iow, "%s%d %v = %v\n", prefix, i, runt, n.Values[i])
 	}
 
 	n.runlock()
 }
 
+// NOTE: Node must be locked before calling.
 func (n *leafNode[K, V]) smallest() K {
+	// n.rlock()
+	// defer n.runlock()
 	if len(n.Runts) == 0 {
+		// Cannot get here unless bug introduced in library.
 		panic("leaf node has no Children")
 	}
 	return n.Runts[0]
@@ -215,6 +214,8 @@ func (n *leafNode[K, V]) smallest() K {
 
 // split will return a new leaf node after moving half of its values to the
 // newly created leaf node.
+//
+// NOTE: Node must be locked before calling.
 func (n *leafNode[K, V]) split(order int) *leafNode[K, V] {
 	debug := newDebug(false, "leafNode.split(%d)", order)
 
@@ -240,6 +241,7 @@ func (n *leafNode[K, V]) split(order int) *leafNode[K, V] {
 	return sibling
 }
 
+// NOTE: Node must be locked before calling.
 func (n *leafNode[K, V]) String() string {
 	var builder strings.Builder
 	builder.WriteString("LEAF: [")
@@ -255,31 +257,31 @@ func (n *leafNode[K, V]) String() string {
 }
 
 // updateKey will locate the key-value pair, creating a place for the pair if
-// the key does not yet exist in the tree. It invokes callback with the key's
+// the key does not yet exist in the tree.  It invokes callback with the key's
 // value and true if the key was in the tree, or the zero value for the key's
-// type and false if the key was not in the tree. This stores the return value
+// type and false if the key was not in the tree.  This stores the return value
 // of callback as the value for key in the tree before returning.
 //
 // This method returns the new node when this node split in order to
 // accommodate the new key.
-func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bool), key K, order int, knownPresent bool, callback func(V, bool) (V, error)) (node[K, V], error) {
+//
+// NOTE: Node must be locked before calling.
+func (n *leafNode[K, V]) updateKey(insertionIndexFunc func(keys []K, key K) (int, bool), key K, order int, knownPresent bool, callback func(V, bool) (V, error)) (node[K, V], error) {
 	debug := newDebug(false, "leafNode.updateKey(key=%v, order=%d)", key, order)
 
 	var err error
 	var keyZeroValue K
 	var newValue, valueZeroValue V
 
-	n.lock()
-	defer n.unlock()
-
-	// TODO: combine handling of knownPresent with index, ok.
+	// TODO: Code length can be reduced by combining handling of knownPresent
+	// with index, ok.
 
 	// OPTIMIZATION: The knownPresent argument is set to true by an ancestor
 	// node when it discovers the key is an exact member of its Runts
-	// slice. In such cases, the key is already present and stored at a node
-	// found by following index 0 to a leaf node. Because the key is already
+	// slice.  In such cases, the key is already present and stored at a node
+	// found by following index 0 to a leaf node.  Because the key is already
 	// present, this is an update rather than an insertion, and no node
-	// splitting will be required. When the key is known to be present, then
+	// splitting will be required.  When the key is known to be present, then
 	// the index is already set correctly, because the key is stored at index
 	// 0.
 	if knownPresent {
@@ -296,7 +298,7 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 	// When the key is not already known to be present because it was found in
 	// the runts of an ancestor node, must search for it in the slice of
 	// runts.
-	index, ok := insertionIndex(n.Runts, key)
+	index, ok := insertionIndexFunc(n.Runts, key)
 
 	// When the key is found in the runts of the leaf node, then this is an
 	// update rather than an insertion; no node splitting will be required.
@@ -354,7 +356,7 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 	// When key is before smallest key in the new sibling, this key will go
 	// into the left node.
 	if key < newSibling.Runts[0] {
-		index, _ = insertionIndex(n.Runts, key) // ignorning ok because we know not present
+		index, _ = insertionIndexFunc(n.Runts, key) // ignorning ok because we know not present
 
 		if index == len(n.Runts) {
 			// DONE panic("TEST LEAF NODE SPLIT REQUIRED; KEY ON LEFT SIDE; KEY AFTER INDEX")
@@ -386,7 +388,7 @@ func (n *leafNode[K, V]) updateKey(insertionIndex func(keys []K, key K) (int, bo
 
 	// New key will go to newly created sibling.
 
-	index, _ = insertionIndex(newSibling.Runts, key) // ignoring ok because we know not present
+	index, _ = insertionIndexFunc(newSibling.Runts, key) // ignoring ok because we know not present
 
 	if index == len(newSibling.Runts) {
 		// DONE panic("TEST LEAF NODE SPLIT REQUIRED; KEY ON RIGHT SIDE; KEY AFTER INDEX")
